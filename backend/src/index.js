@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import clientRoutes from './routes/clients.js';
 import documentRoutes from './routes/documents.js';
+import eventRoutes from './routes/events.js';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 // Routes
 app.use('/api/clients', clientRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/events', eventRoutes);
 
 // Health Check
 app.get('/api/ping', (req, res) => {

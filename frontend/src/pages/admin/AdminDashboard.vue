@@ -4,7 +4,7 @@ import { ref, computed } from 'vue'
 import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
-    FileText, Trash2, Lock, BarChart3, ArrowLeft 
+    FileText, Trash2, Lock, BarChart3, ArrowLeft, Calendar 
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import DocumentManager from '@/components/admin/DocumentManager.vue'
+import CalendarComponent from '@/components/Calendar.vue'
 
 // --- Interfaces ---
 interface Document {
@@ -40,7 +41,7 @@ interface Client {
 // const router = useRouter()
 const users = ref<Client[]>([])
 const selectedUser = ref<Client | null>(null)
-const activeView = ref<'clients' | 'stats'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar'>('clients')
 const searchTerm = ref('')
 const showCreateForm = ref(false)
 const isLoading = ref(false)
@@ -235,6 +236,13 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     Gestion Clients
                 </button>
                 <button
+                    @click="activeView = 'calendar'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'calendar' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <Calendar :size="18" />
+                    Calendrier
+                </button>
+                <button
                     @click="activeView = 'stats'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'stats' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
                 >
@@ -268,7 +276,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         </div>
                     </button>
                     <div class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
-                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : 'Tableau de bord / Clients' }}
+                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 md:gap-4">
@@ -371,6 +379,11 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                             <div class="text-5xl font-light text-black mb-2 tracking-tighter">{{ activeClientsCheck }}</div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Calendar View -->
+                <div v-else-if="activeView === 'calendar'" class="h-full">
+                    <CalendarComponent />
                 </div>
 
                 <!-- Clients List View -->
