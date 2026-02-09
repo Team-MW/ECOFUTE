@@ -2,15 +2,14 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { 
-    HardDrive, Folder, FileText, Upload, Search, Filter, 
-    MoreHorizontal, Download, Archive, Trash2, FolderPlus, 
-    Users, Clock, LayoutGrid, List as ListIcon 
+    HardDrive, Folder, FileText, Upload, Search, 
+    Download, Archive, Trash2, FolderPlus, 
+    Users, LayoutGrid, List as ListIcon 
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface Document {
     id: number
@@ -40,7 +39,12 @@ const currentFolder = ref<string | null>(null)
 const showUploadDialog = ref(false)
 const selectedFile = ref<File | null>(null)
 
-const uploadForm = ref({
+const uploadForm = ref<{
+    name: string
+    category: string
+    folder: string
+    clientId: string
+}>({
     name: '',
     category: 'Général',
     folder: '',
@@ -93,7 +97,7 @@ const archiveDocument = async (doc: Document) => {
         await axios.put(`/api/documents/${doc.id}`, { isArchived: !doc.isArchived })
         // Update local
         const index = documents.value.findIndex(d => d.id === doc.id)
-        if (index !== -1) {
+        if (index !== -1 && documents.value[index]) {
             documents.value[index].isArchived = !doc.isArchived
         }
     } catch (err) {
@@ -304,26 +308,17 @@ const formatDate = (date: string) => new Date(date).toLocaleDateString('fr-FR')
                                 <div class="p-2 bg-zinc-50 rounded-sm">
                                     <FileText class="text-zinc-400 group-hover:text-black transition-colors" :size="24" />
                                 </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger as-child>
-                                        <button class="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-100 rounded-sm transition-all">
-                                            <MoreHorizontal :size="16" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" class="w-48">
-                                        <DropdownMenuItem @click="() => {}">
-                                            <a :href="doc.url" target="_blank" class="flex items-center w-full">
-                                                <Download :size="14" class="mr-2" /> Télécharger
-                                            </a>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem @click="archiveDocument(doc)">
-                                            <Archive :size="14" class="mr-2" /> {{ doc.isArchived ? 'Désarchiver' : 'Archiver' }}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem @click="deleteDocument(doc.id)" class="text-red-500 focus:text-red-600 focus:bg-red-50">
-                                            <Trash2 :size="14" class="mr-2" /> Supprimer
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <a :href="doc.url" target="_blank" class="p-1 hover:bg-zinc-100 rounded-sm text-zinc-500 hover:text-black transition-colors" title="Télécharger">
+                                        <Download :size="14" />
+                                    </a>
+                                    <button @click="archiveDocument(doc)" class="p-1 hover:bg-zinc-100 rounded-sm text-zinc-500 hover:text-black transition-colors" :title="doc.isArchived ? 'Désarchiver' : 'Archiver'">
+                                        <Archive :size="14" />
+                                    </button>
+                                    <button @click="deleteDocument(doc.id)" class="p-1 hover:bg-red-50 rounded-sm text-zinc-400 hover:text-red-600 transition-colors" title="Supprimer">
+                                        <Trash2 :size="14" />
+                                    </button>
+                                </div>
                             </div>
 
                             <div>

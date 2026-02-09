@@ -357,7 +357,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <div v-else-if="activeView === 'stats'" class="mb-8">
                     <div class="mb-8 border-b border-zinc-100 pb-4">
                         <h1 class="text-3xl font-bold text-black tracking-tight tracking-tighter">Statistiques</h1>
-                        <p class="text-zinc-500 mt-2">Vue d'ensemble de l'activité EcoFuté.</p>
+                        <p class="text-zinc-500 mt-2">Vue d'overview de l'activité EcoFuté.</p>
                     </div>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
@@ -398,6 +398,11 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <!-- Sales View -->
                 <div v-else-if="activeView === 'sales'" class="h-full">
                     <SalesTracking />
+                </div>
+
+                <!-- Drive View -->
+                <div v-else-if="activeView === 'drive'" class="h-full">
+                    <InternalDrive />
                 </div>
 
                 <!-- Clients List View -->
