@@ -30,9 +30,13 @@ model Document {
   status    String   @default("En attente")
   createdAt DateTime @default(now())
   
-  clientId  Int
-  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  Int?
+  client    Client?  @relation(fields: [clientId], references: [id])
   
+  category  String   @default("Autre")
+  folder    String?
+  isArchived Boolean @default(false)
+
   @@index([clientId])
 }
 
@@ -43,6 +47,17 @@ model Event {
   date        DateTime
   time        String?
   color       String   @default("#3b82f6")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Sale {
+  id          Int      @id @default(autoincrement())
+  title       String   // Description of the sale or client name
+  description String?  // Detailed description of the sale
+  amount      Float    // Value of the sale
+  date        DateTime // Date of the sale
+  status      String   @default("Payé") // Payé, En attente, Annulé
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

@@ -13,6 +13,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import DocumentManager from '@/components/admin/DocumentManager.vue'
 import CalendarComponent from '@/components/Calendar.vue'
+import SalesTracking from '@/components/admin/SalesTracking.vue'
+import InternalDrive from '@/components/admin/InternalDrive.vue'
 
 // --- Interfaces ---
 interface Document {
@@ -41,7 +43,7 @@ interface Client {
 // const router = useRouter()
 const users = ref<Client[]>([])
 const selectedUser = ref<Client | null>(null)
-const activeView = ref<'clients' | 'stats' | 'calendar'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive'>('clients')
 const searchTerm = ref('')
 const showCreateForm = ref(false)
 const isLoading = ref(false)
@@ -243,6 +245,13 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     Calendrier
                 </button>
                 <button
+                    @click="activeView = 'sales'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'sales' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <TrendingUp :size="18" />
+                    Suivi de Vente
+                </button>
+                <button
                     @click="activeView = 'stats'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'stats' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
                 >
@@ -384,6 +393,11 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <!-- Calendar View -->
                 <div v-else-if="activeView === 'calendar'" class="h-full">
                     <CalendarComponent />
+                </div>
+
+                <!-- Sales View -->
+                <div v-else-if="activeView === 'sales'" class="h-full">
+                    <SalesTracking />
                 </div>
 
                 <!-- Clients List View -->

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import clientRoutes from './routes/clients.js';
 import documentRoutes from './routes/documents.js';
 import eventRoutes from './routes/events.js';
+import salesRoutes from './routes/sales.js';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use('/api/clients', clientRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/sales', salesRoutes);
 
 // Health Check
 app.get('/api/ping', (req, res) => {
