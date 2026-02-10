@@ -306,62 +306,62 @@ onMounted(fetchClients)
 
         <!-- Customization Dialog -->
         <Dialog v-model:open="showSettingsDialog">
-            <DialogContent class="sm:max-w-lg">
+            <DialogContent class="sm:max-w-lg bg-white border border-zinc-200 shadow-xl text-black">
                 <DialogHeader>
-                    <DialogTitle>Personnaliser votre entreprise</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle class="text-xl font-bold">Personnaliser votre entreprise</DialogTitle>
+                    <DialogDescription class="text-zinc-500">
                         Modifiez les informations qui apparaissent sur vos factures.
                     </DialogDescription>
                 </DialogHeader>
                 
-                <div class="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+                <div class="space-y-5 py-4 max-h-[60vh] overflow-y-auto px-1">
                     <div class="space-y-2">
-                        <Label>Logo</Label>
-                        <div class="flex items-center gap-4">
-                            <div v-if="companyDetails.logoUrl" class="w-16 h-16 border border-zinc-200 rounded-md p-1 bg-zinc-50">
+                        <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Logo</Label>
+                        <div class="flex items-center gap-4 bg-zinc-50 p-3 rounded-md border border-zinc-100">
+                            <div v-if="companyDetails.logoUrl" class="w-16 h-16 border border-zinc-200 rounded-md p-1 bg-white">
                                 <img :src="companyDetails.logoUrl" class="w-full h-full object-contain" />
                             </div>
-                            <div v-else class="w-16 h-16 border border-zinc-200 border-dashed rounded-md flex items-center justify-center bg-zinc-50 text-zinc-400">
-                                <ImageIcon :size="20" />
+                            <div v-else class="w-16 h-16 border border-zinc-200 border-dashed rounded-md flex items-center justify-center bg-white text-zinc-300">
+                                <ImageIcon :size="24" />
                             </div>
                             <div class="flex-1">
-                                <Input type="file" accept="image/*" @change="handleLogoUpload" class="cursor-pointer" />
-                                <p class="text-[10px] text-zinc-500 mt-1">Format recommandé : PNG, JPG</p>
+                                <Input type="file" accept="image/*" @change="handleLogoUpload" class="cursor-pointer bg-white border-zinc-200 text-sm file:bg-black file:text-white file:border-0 file:rounded-sm file:px-2 file:py-1 file:mr-2 file:text-xs hover:bg-zinc-50" />
+                                <p class="text-[10px] text-zinc-400 mt-2 font-medium">Format recommandé : PNG, JPG (Max 2Mo)</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <Label>Nom de l'entreprise</Label>
-                            <Input v-model="companyDetails.name" />
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Nom de l'entreprise</Label>
+                            <Input v-model="companyDetails.name" class="bg-white border-zinc-200 focus:border-black font-medium" />
                         </div>
-                        <div class="space-y-2">
-                            <Label>Couleur principale</Label>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Couleur principale</Label>
                             <div class="flex gap-2">
-                                <Input type="color" v-model="companyDetails.accentColor" class="w-12 h-10 p-1 cursor-pointer" />
-                                <Input v-model="companyDetails.accentColor" class="flex-1 font-mono uppercase" />
+                                <Input type="color" v-model="companyDetails.accentColor" class="w-12 h-10 p-1 cursor-pointer bg-white border-zinc-200" />
+                                <Input v-model="companyDetails.accentColor" class="flex-1 font-mono uppercase bg-white border-zinc-200 focus:border-black" />
                             </div>
                         </div>
                     </div>
 
-                    <div class="space-y-2">
-                        <Label>Adresse ligne 1</Label>
-                        <Input v-model="companyDetails.address1" />
+                    <div class="space-y-1.5">
+                        <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Adresse ligne 1</Label>
+                        <Input v-model="companyDetails.address1" class="bg-white border-zinc-200 focus:border-black" />
                     </div>
-                     <div class="space-y-2">
-                        <Label>Adresse ligne 2 (CP, Ville)</Label>
-                        <Input v-model="companyDetails.address2" />
+                     <div class="space-y-1.5">
+                        <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Adresse ligne 2 (CP, Ville)</Label>
+                        <Input v-model="companyDetails.address2" class="bg-white border-zinc-200 focus:border-black" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
-                         <div class="space-y-2">
-                            <Label>Email de contact</Label>
-                            <Input v-model="companyDetails.email" />
+                         <div class="space-y-1.5">
+                            <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Email de contact</Label>
+                            <Input v-model="companyDetails.email" class="bg-white border-zinc-200 focus:border-black" />
                         </div>
-                         <div class="space-y-2">
-                            <Label>Numéro SIRET</Label>
-                            <Input v-model="companyDetails.siret" />
+                         <div class="space-y-1.5">
+                            <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Numéro SIRET</Label>
+                            <Input v-model="companyDetails.siret" class="bg-white border-zinc-200 focus:border-black" />
                         </div>
                     </div>
                 </div>
