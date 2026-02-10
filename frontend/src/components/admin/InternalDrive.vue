@@ -364,9 +364,13 @@ const formatDate = (date: string) => new Date(date).toLocaleDateString('fr-FR')
                                     <td class="px-4 py-3 text-zinc-500 font-mono text-xs">{{ formatSize(doc.size) }}</td>
                                     <td class="px-4 py-3 text-right">
                                         <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-                                                <a :href="doc.url" target="_blank"><Download :size="14" /></a>
-                                            </Button>
+                                            <a 
+                                                :href="doc.url" 
+                                                target="_blank"
+                                                class="h-8 w-8 p-0 inline-flex items-center justify-center rounded-sm hover:bg-zinc-100 text-zinc-900 transition-colors"
+                                            >
+                                                <Download :size="14" />
+                                            </a>
                                             <Button @click="archiveDocument(doc)" variant="ghost" size="sm" class="h-8 w-8 p-0">
                                                 <Archive :size="14" />
                                             </Button>

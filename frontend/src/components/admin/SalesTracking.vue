@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { Plus, Search, Trash2, Edit2, TrendingUp, DollarSign, Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-vue-next'
+import { Plus, Search, Trash2, Edit2, TrendingUp, DollarSign, Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight, ChevronDown, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import * as XLSX from 'xlsx'
 
 interface Sale {
     id: number
@@ -158,6 +159,29 @@ const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Export to Excel
+const exportToExcel = () => {
+    // Prepare data directly from sales state (all sales, not just filtered)
+    const dataToExport = sales.value.map(sale => ({
+        ID: sale.id,
+        Titre: sale.title,
+        Description: sale.description || '',
+        Montant: sale.amount,
+        Date: new Date(sale.date).toLocaleDateString('fr-FR'),
+        Statut: sale.status
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Ventes")
+    
+    // Auto-width for columns
+    const max_width = dataToExport.reduce((w, r) => Math.max(w, r.Titre.length), 10)
+    worksheet["!cols"] = [ { wch: 5 }, { wch: max_width }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 10 } ]
+
+    XLSX.writeFile(workbook, `Ventes_EcoFute_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
 // Month Navigation
 const previousMonth = () => {
     currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1)
@@ -214,6 +238,10 @@ const salesCount = computed(() => filteredSales.value.length)
                         <ChevronRight :size="18" />
                     </Button>
                 </div>
+
+                <Button @click="exportToExcel" variant="outline" class="border-zinc-200 text-zinc-700 hover:bg-zinc-50 h-10 px-4 uppercase tracking-wider text-xs font-bold transition-all">
+                    <Download :size="16" class="mr-2" /> Export Excel
+                </Button>
 
                 <Button @click="openNewSaleDialog" class="bg-black hover:bg-zinc-800 text-white rounded-sm h-10 px-4 uppercase tracking-wider text-xs font-bold shadow-sm transition-all hover:shadow-md">
                     <Plus :size="16" class="mr-2" /> Nouvelle Vente
@@ -334,7 +362,7 @@ const salesCount = computed(() => filteredSales.value.length)
 
         <!-- Add/Edit Sale Dialog -->
         <Dialog v-model:open="showSaleDialog">
-            <DialogContent class="sm:max-w-md rounded-sm border-zinc-200 p-0 overflow-hidden">
+             <DialogContent class="sm:max-w-md rounded-sm border-zinc-200 p-0 overflow-hidden bg-white text-black">
                 <DialogHeader class="p-6 pb-2 bg-zinc-50 border-b border-zinc-100">
                     <DialogTitle class="text-xl font-bold tracking-tight text-zinc-900">
                         {{ editingSale ? 'Modifier la Vente' : 'Nouvelle Vente' }}
