@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
             firstName: u.firstName,
             lastName: u.lastName,
             email: u.emailAddresses[0]?.emailAddress,
-            // role: u.publicMetadata?.role || 'user', // Basic role storage
+            color: u.publicMetadata?.color || '#3b82f6',
             createdAt: u.createdAt
         }));
         res.json(simplifiedUsers);
@@ -29,10 +29,8 @@ router.get('/', async (req, res) => {
 });
 
 // 2. CREATE USER
-// For simplicity, we assume admin provides email + temp password.
-// In reality, invitations are better, but this demonstrates "Admin Create".
 router.post('/', async (req, res) => {
-    const { firstName, lastName, email, password } = req.body;
+    const { firstName, lastName, email, password, color } = req.body;
 
     if (!email || !password || !firstName || !lastName) {
         return res.status(400).json({ error: 'All fields are required' });
@@ -44,20 +42,19 @@ router.post('/', async (req, res) => {
             lastName,
             emailAddress: [email],
             password,
+            publicMetadata: {
+                color: color || '#3b82f6'
+            },
             skipPasswordChecks: false, // Enforce strong pw
             skipPasswordRequirement: false,
         });
-
-        // Optionally update metadata
-        // await clerk.users.updateUserMetadata(user.id, {
-        //     publicMetadata: { role: 'employee' }
-        // });
 
         res.json({
             id: user.id,
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.emailAddresses[0].emailAddress,
+            color: user.publicMetadata.color
         });
     } catch (error) {
         console.error("Error creating user:", error);

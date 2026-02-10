@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { Plus, Trash2, Printer, Save, Loader } from 'lucide-vue-next'
+import { Plus, Trash2, Printer, Save, Loader, Settings, Image as ImageIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 interface InvoiceItem {
     id: number
@@ -26,6 +28,18 @@ const selectedClientId = ref<string>('')
 const clientName = ref('')
 const clientEmail = ref('')
 const isSaving = ref(false)
+const showSettingsDialog = ref(false)
+
+// Company Settings (White Label)
+const companyDetails = ref({
+    name: 'EcoFuté.',
+    address1: "123 Avenue de l'Innovation",
+    address2: "31000 Toulouse, France",
+    email: "contact@ecofute.com",
+    siret: "123 456 789 00012",
+    logoUrl: '',
+    accentColor: '#000000'
+})
 
 const invoiceDate = ref(new Date().toISOString().split('T')[0])
 const invoiceNumber = ref(`FAC-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`)
@@ -95,7 +109,8 @@ const saveInvoice = async () => {
             items: items.value,
             subtotal: subtotal.value,
             tax: taxAmount.value,
-            total: total.value
+            total: total.value,
+            companyDetails: companyDetails.value // Save snapshot of company details
         }
 
         await axios.post('/api/sales', {
@@ -119,6 +134,17 @@ const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(val)
 }
 
+const handleLogoUpload = (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (file) {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+            companyDetails.value.logoUrl = e.target?.result as string
+        }
+        reader.readAsDataURL(file)
+    }
+}
+
 onMounted(fetchClients)
 </script>
 
@@ -132,6 +158,9 @@ onMounted(fetchClients)
                 <p class="text-sm text-zinc-500">Générez des factures professionnelles pour vos clients.</p>
             </div>
             <div class="flex gap-3">
+                <Button @click="showSettingsDialog = true" variant="outline" class="border-zinc-200 text-zinc-900 h-10">
+                    <Settings :size="16" class="mr-2" /> Personnaliser
+                </Button>
                  <Button @click="saveInvoice" :disabled="isSaving" variant="outline" class="border-zinc-200 text-zinc-900 h-10">
                     <Loader v-if="isSaving" class="animate-spin mr-2" :size="16" />
                     <Save v-else :size="16" class="mr-2" /> Enregistrer
@@ -143,20 +172,25 @@ onMounted(fetchClients)
         </div>
 
         <!-- Invoice Preview / Editor -->
-        <div class="bg-white border border-zinc-200 shadow-sm p-8 md:p-12 print:border-0 print:shadow-none print:p-0">
+        <div class="bg-white border border-zinc-200 shadow-sm p-8 md:p-12 print:border-0 print:shadow-none print:p-0 relative">
             
             <!-- Invoice Header -->
             <div class="flex flex-col md:flex-row justify-between mb-12">
                 <div>
-                     <div class="flex items-center gap-2 mb-4">
-                        <div class="w-8 h-8 bg-black flex items-center justify-center text-white font-bold rounded-sm">E</div>
-                        <span class="text-xl font-bold tracking-tighter">EcoFuté.</span>
+                     <div class="flex items-center gap-3 mb-6">
+                        <div v-if="companyDetails.logoUrl" class="w-16 h-16 object-contain overflow-hidden rounded-sm">
+                            <img :src="companyDetails.logoUrl" alt="Logo" class="w-full h-full object-contain" />
+                        </div>
+                        <div v-else class="w-12 h-12 bg-black flex items-center justify-center text-white font-bold rounded-sm text-xl" :style="{ backgroundColor: companyDetails.accentColor }">
+                            {{ companyDetails.name.charAt(0) }}
+                        </div>
+                        <span class="text-2xl font-bold tracking-tighter">{{ companyDetails.name }}</span>
                     </div>
                     <div class="text-sm text-zinc-500 space-y-1">
-                        <p>123 Avenue de l'Innovation</p>
-                        <p>31000 Toulouse, France</p>
-                        <p>contact@ecofute.com</p>
-                        <p>SIRET: 123 456 789 00012</p>
+                        <p>{{ companyDetails.address1 }}</p>
+                        <p>{{ companyDetails.address2 }}</p>
+                        <p>{{ companyDetails.email }}</p>
+                        <p>SIRET: {{ companyDetails.siret }}</p>
                     </div>
                 </div>
                 <div class="mt-8 md:mt-0 text-right">
@@ -175,7 +209,7 @@ onMounted(fetchClients)
             </div>
 
             <!-- Client Info -->
-            <div class="mb-12 border-t border-zinc-100 pt-8">
+            <div class="mb-12 border-t border-zinc-100 pt-8" :style="{ borderColor: companyDetails.accentColor + '40' }">
                 <h3 class="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4">Facturé à</h3>
                 
                 <!-- Client Selection Dropdown (Hidden in Print) -->
@@ -210,7 +244,7 @@ onMounted(fetchClients)
             <div class="mb-12">
                 <table class="w-full text-left">
                     <thead>
-                        <tr class="border-b-2 border-zinc-900">
+                        <tr class="border-b-2" :style="{ borderColor: companyDetails.accentColor }">
                             <th class="py-3 text-xs font-bold uppercase tracking-widest text-black w-1/2">Description</th>
                             <th class="py-3 text-xs font-bold uppercase tracking-widest text-black text-center w-24">Qté</th>
                             <th class="py-3 text-xs font-bold uppercase tracking-widest text-black text-right w-32">Prix Unit.</th>
@@ -256,7 +290,7 @@ onMounted(fetchClients)
                         <span>TVA (20%)</span>
                         <span class="font-mono">{{ formatCurrency(taxAmount) }}</span>
                     </div>
-                    <div class="flex justify-between text-lg font-bold text-black border-t-2 border-zinc-900 pt-3 mt-3">
+                    <div class="flex justify-between text-lg font-bold text-black border-t-2 pt-3 mt-3" :style="{ borderColor: companyDetails.accentColor }">
                         <span>Total TTC</span>
                         <span class="font-mono">{{ formatCurrency(total) }}</span>
                     </div>
@@ -269,6 +303,76 @@ onMounted(fetchClients)
                 <p>Conditions de paiement : 30 jours fin de mois. Pénalités de retard : 3 fois le taux d'intérêt légal.</p>
             </div>
         </div>
+
+        <!-- Customization Dialog -->
+        <Dialog v-model:open="showSettingsDialog">
+            <DialogContent class="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Personnaliser votre entreprise</DialogTitle>
+                    <DialogDescription>
+                        Modifiez les informations qui apparaissent sur vos factures.
+                    </DialogDescription>
+                </DialogHeader>
+                
+                <div class="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+                    <div class="space-y-2">
+                        <Label>Logo</Label>
+                        <div class="flex items-center gap-4">
+                            <div v-if="companyDetails.logoUrl" class="w-16 h-16 border border-zinc-200 rounded-md p-1 bg-zinc-50">
+                                <img :src="companyDetails.logoUrl" class="w-full h-full object-contain" />
+                            </div>
+                            <div v-else class="w-16 h-16 border border-zinc-200 border-dashed rounded-md flex items-center justify-center bg-zinc-50 text-zinc-400">
+                                <ImageIcon :size="20" />
+                            </div>
+                            <div class="flex-1">
+                                <Input type="file" accept="image/*" @change="handleLogoUpload" class="cursor-pointer" />
+                                <p class="text-[10px] text-zinc-500 mt-1">Format recommandé : PNG, JPG</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <Label>Nom de l'entreprise</Label>
+                            <Input v-model="companyDetails.name" />
+                        </div>
+                        <div class="space-y-2">
+                            <Label>Couleur principale</Label>
+                            <div class="flex gap-2">
+                                <Input type="color" v-model="companyDetails.accentColor" class="w-12 h-10 p-1 cursor-pointer" />
+                                <Input v-model="companyDetails.accentColor" class="flex-1 font-mono uppercase" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label>Adresse ligne 1</Label>
+                        <Input v-model="companyDetails.address1" />
+                    </div>
+                     <div class="space-y-2">
+                        <Label>Adresse ligne 2 (CP, Ville)</Label>
+                        <Input v-model="companyDetails.address2" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                         <div class="space-y-2">
+                            <Label>Email de contact</Label>
+                            <Input v-model="companyDetails.email" />
+                        </div>
+                         <div class="space-y-2">
+                            <Label>Numéro SIRET</Label>
+                            <Input v-model="companyDetails.siret" />
+                        </div>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button @click="showSettingsDialog = false" class="bg-black text-white hover:bg-zinc-800">
+                        Terminer
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
 

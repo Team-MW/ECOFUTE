@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useUser } from '@clerk/vue'
 import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, Calendar as CalendarIcon, Clock, AlignLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,13 +10,14 @@ import axios from 'axios'
 interface CalendarEvent {
     id: number
     title: string
-    date: Date | string // Date object or ISO string from API
+    date: Date | string 
     color: string
     description?: string
     time?: string
 }
 
 // State
+const { user } = useUser()
 const currentDate = ref(new Date())
 const selectedDate = ref<Date | null>(new Date()) // Default to today
 const events = ref<CalendarEvent[]>([])
@@ -228,12 +230,14 @@ const getEventsForDate = (date: Date | null) => {
 const openNewEventDialog = () => {
     editingEvent.value = null
     // Initialize form
+    const userColor = (user.value?.publicMetadata as any)?.color || '#3b82f6'
+
     eventForm.value = {
         title: '',
         date: (selectedDate.value ? selectedDate.value.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]) || '',
         time: '',
         description: '',
-        color: '#3b82f6'
+        color: userColor
     }
     showEventDialog.value = true
 }

@@ -19,6 +19,7 @@ interface TeamMember {
     lastName: string
     email: string
     role?: string
+    color?: string
     createdAt: number
 }
 
@@ -31,7 +32,8 @@ const form = ref({
     firstName: '',
     lastName: '',
     email: '',
-    password: ''
+    password: '',
+    color: '#3b82f6'
 })
 
 const fetchMembers = async () => {
@@ -51,7 +53,7 @@ const handleInvite = async () => {
         const res = await axios.post('/api/users', form.value)
         members.value.push(res.data)
         showInviteDialog.value = false
-        form.value = { firstName: '', lastName: '', email: '', password: '' }
+        form.value = { firstName: '', lastName: '', email: '', password: '', color: '#3b82f6' }
         alert("Utilisateur créé avec succès !")
     } catch (e: any) {
         alert("Erreur: " + (e.response?.data?.error || e.message))
@@ -59,6 +61,20 @@ const handleInvite = async () => {
         isSubmitting.value = false
     }
 }
+
+// ... existing code ...
+
+// In Template, modify member card:
+// <div class="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center text-lg font-bold text-zinc-700" :style="{ backgroundColor: member.color ? member.color + '20' : '', color: member.color || 'inherit' }">
+
+// Add color picker to form:
+// <div class="space-y-2">
+//    <label class="text-xs font-bold uppercase text-zinc-500">Couleur d'identification</label>
+//    <div class="flex items-center gap-2">
+//        <input type="color" v-model="form.color" class="h-9 w-16 p-0 border-0 rounded cursor-pointer" />
+//        <span class="text-xs text-zinc-500">{{ form.color }}</span>
+//    </div>
+// </div>
 
 const handleDelete = async (id: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cet accès ?")) return
@@ -99,7 +115,14 @@ onMounted(fetchMembers)
                     </button>
                     
                     <div class="flex items-center gap-4 mb-4">
-                        <div class="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center text-lg font-bold text-zinc-700">
+                        <div 
+                            class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold transition-all"
+                            :style="{ 
+                                backgroundColor: member.color ? member.color + '20' : '#f4f4f5', 
+                                color: member.color || '#3f3f46',
+                                border: `1px solid ${member.color ? member.color + '40' : 'transparent'}`
+                            }"
+                        >
                             {{ member.firstName?.[0] || 'U' }}{{ member.lastName?.[0] || '' }}
                         </div>
                         <div>
@@ -156,6 +179,19 @@ onMounted(fetchMembers)
                             <Lock :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                         </div>
                         <p class="text-[10px] text-zinc-400">Le mot de passe doit contenir au moins 8 caractères.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold uppercase text-zinc-500">Couleur d'identification</label>
+                        <div class="flex items-center gap-3 p-2 border border-zinc-200 rounded-md">
+                            <input 
+                                type="color" 
+                                v-model="form.color" 
+                                class="h-8 w-12 p-0 border-0 rounded cursor-pointer bg-transparent" 
+                            />
+                            <span class="text-xs font-mono text-zinc-500">{{ form.color }}</span>
+                        </div>
+                        <p class="text-[10px] text-zinc-400">Cette couleur sera utilisée pour ses événements dans le calendrier.</p>
                     </div>
 
                     <div class="flex justify-end pt-4">

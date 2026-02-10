@@ -18,6 +18,7 @@ import SalesTracking from '@/components/admin/SalesTracking.vue'
 import InternalDrive from '@/components/admin/InternalDrive.vue'
 import InvoiceCreator from '@/components/admin/InvoiceCreator.vue'
 import TeamManager from '@/components/admin/TeamManager.vue'
+import DashboardStats from '@/components/admin/DashboardStats.vue'
 
 // --- Interfaces ---
 interface Document {
