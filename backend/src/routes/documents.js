@@ -85,8 +85,6 @@ router.post('/', upload.single('file'), async (req, res) => {
         const result = await uploadFromBuffer(file.buffer);
 
         // Determine final name
-        // If name provided, use it, else original name
-        // The old logic prepended category to name, let's keep name clean and use category field
         const finalName = name || file.originalname;
 
         const doc = await prisma.document.create({
@@ -95,7 +93,7 @@ router.post('/', upload.single('file'), async (req, res) => {
                 type: result.format || file.mimetype,
                 size: (result.bytes / 1024 / 1024).toFixed(2) + ' MB',
                 url: result.secure_url,
-                clientId: clientId ? parseInt(clientId) : null,
+                clientId: (clientId && !isNaN(parseInt(clientId))) ? parseInt(clientId) : null,
                 category: category || "Autre",
                 folder: folder || null
             }

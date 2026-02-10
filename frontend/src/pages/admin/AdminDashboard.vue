@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-// import { useRouter } from 'vue-router'
+import { ref, computed, watchEffect } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuth, UserButton, useUser } from '@clerk/vue'
 import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
-    FileText, Trash2, Lock, BarChart3, ArrowLeft, Calendar 
+    Trash2, Lock, ArrowLeft, Calendar, FilePlus, ShieldCheck
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,8 @@ import DocumentManager from '@/components/admin/DocumentManager.vue'
 import CalendarComponent from '@/components/Calendar.vue'
 import SalesTracking from '@/components/admin/SalesTracking.vue'
 import InternalDrive from '@/components/admin/InternalDrive.vue'
+import InvoiceCreator from '@/components/admin/InvoiceCreator.vue'
+import TeamManager from '@/components/admin/TeamManager.vue'
 
 // --- Interfaces ---
 interface Document {
@@ -40,36 +43,44 @@ interface Client {
 }
 
 // --- State ---
-// const router = useRouter()
+const router = useRouter()
+const { isSignedIn, isLoaded, signOut } = useAuth()
+const { user } = useUser()
+
+watchEffect(() => {
+    if (isLoaded.value && !isSignedIn.value) {
+        router.push('/login')
+    }
+})
+
 const users = ref<Client[]>([])
 const selectedUser = ref<Client | null>(null)
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team'>('clients')
 const searchTerm = ref('')
 const showCreateForm = ref(false)
 const isLoading = ref(false)
 const showSuccess = ref(false)
 const isMobileMenuOpen = ref(false)
-const isAuthenticated = ref(false) // Fake Auth for now
+const isPinVerified = ref(false) 
 const pinCode = ref('')
 const error = ref('')
 
 // --- Computed ---
 const filteredUsers = computed(() => {
-    return users.value.filter(u => 
-        (u.firstName?.toLowerCase() || '').includes(searchTerm.value.toLowerCase()) ||
-        (u.lastName?.toLowerCase() || '').includes(searchTerm.value.toLowerCase()) ||
-        (u.email?.toLowerCase() || '').includes(searchTerm.value.toLowerCase())
+    if (!searchTerm.value) return users.value
+    const query = searchTerm.value.toLowerCase()
+    return users.value.filter(user => 
+        (user.firstName?.toLowerCase() || '').includes(query) || 
+        (user.lastName?.toLowerCase() || '').includes(query) ||
+        (user.email?.toLowerCase() || '').includes(query)
     )
 })
-
-const totalDocs = computed(() => users.value.reduce((acc, u) => acc + (u.documents?.length || 0), 0))
-const activeClientsCheck = computed(() => users.value.filter(u => u.status === 'Validé').length)
 
 // --- Methods ---
 
 const handlePinSubmit = () => {
     if (pinCode.value === '00000') {
-        isAuthenticated.value = true
+        isPinVerified.value = true
         error.value = ''
         fetchUsers() // Fetch immediately after auth
     } else {
@@ -87,8 +98,10 @@ const fetchUsers = async () => {
     }
 }
 
-const handleSignOut = () => {
-    isAuthenticated.value = false
+const handleSignOut = async () => {
+    // isPinVerified.value = false
+    if (signOut.value) await signOut.value()
+    router.push('/login')
 }
 
 const handleCreateUser = async (e: Event) => {
@@ -173,10 +186,15 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 
 <template>
     <!-- PIN Auth Screen -->
-    <div v-if="!isAuthenticated" class="min-h-screen bg-zinc-50 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+    <div v-if="!isPinVerified" class="min-h-screen bg-zinc-50 flex items-center justify-center p-4 relative overflow-hidden font-sans">
         <div class="absolute inset-0 z-0 opacity-5">
             <div class="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-black rounded-full filter blur-[120px]"></div>
             <div class="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-gray-500 rounded-full filter blur-[100px]"></div>
+        </div>
+
+        <!-- User Button specific for Clerk context -->
+        <div class="absolute top-4 right-4 z-50">
+             <UserButton after-sign-out-url="/login" />
         </div>
 
         <div class="bg-white border border-zinc-200 p-8 max-w-md w-full text-center relative z-10 shadow-2xl shadow-black/5 rounded-none">
@@ -258,16 +276,37 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     <BarChart3 :size="18" />
                     Statistiques
                 </button>
+                <button
+                    @click="activeView = 'invoice'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'invoice' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <FilePlus :size="18" />
+                    Création Facture
+                </button>
+                <div class="px-2 py-3 mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Administration</div>
+                <button
+                    @click="activeView = 'team'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'team' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <ShieldCheck :size="18" />
+                    Gestion Équipe
+                </button>
             </nav>
 
             <div class="p-4 border-t border-zinc-900">
                 <div class="flex items-center gap-3 px-2 py-3">
                     <Avatar class="h-8 w-8 border border-zinc-700">
-                        <AvatarFallback class="bg-zinc-900 text-white text-xs">AD</AvatarFallback>
+                        <AvatarFallback class="bg-zinc-900 text-white text-xs">
+                            {{ user?.firstName?.charAt(0) || user?.emailAddresses[0]?.emailAddress?.charAt(0) || 'U' }}
+                        </AvatarFallback>
                     </Avatar>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-white truncate">Administrateur</p>
-                        <p class="text-xs text-zinc-500 truncate">admin@ecofute.com</p>
+                        <p class="text-sm font-medium text-white truncate">
+                            {{ user?.fullName || 'Utilisateur' }}
+                        </p>
+                        <p class="text-xs text-zinc-500 truncate">
+                            {{ user?.emailAddresses[0]?.emailAddress || 'email@ecofute.com' }}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -347,46 +386,26 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                             </div>
 
                             <div class="bg-white border border-zinc-200 min-h-[400px]">
-                                <DocumentManager :documents="selectedUser.documents" @delete="handleDeleteDocument" />
+                                <DocumentManager 
+                                    :documents="selectedUser.documents" 
+                                    :clientId="selectedUser.id"
+                                    @delete="handleDeleteDocument" 
+                                    @refresh="fetchUsers"
+                                />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Stats View -->
-                <div v-else-if="activeView === 'stats'" class="mb-8">
-                    <div class="mb-8 border-b border-zinc-100 pb-4">
+                <div v-else-if="activeView === 'stats'" class="h-full">
+                    <div class="mb-8 border-b border-zinc-100 pb-4 px-8 pt-8">
                         <h1 class="text-3xl font-bold text-black tracking-tight tracking-tighter">Statistiques</h1>
-                        <p class="text-zinc-500 mt-2">Vue d'overview de l'activité EcoFuté.</p>
+                        <p class="text-zinc-500 mt-2">Vue d'ensemble de l'activité EcoFuté.</p>
                     </div>
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-                        <!-- Stat Card 1 -->
-                        <div class="bg-white p-6 border border-zinc-200 hover:border-black transition-colors group">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Total Clients</h3>
-                                <Users :size="20" class="text-zinc-300 group-hover:text-black transition-colors" />
-                            </div>
-                            <div class="text-5xl font-light text-black mb-2 tracking-tighter">{{ users.length }}</div>
-                        </div>
-                        
-                        <!-- Stat Card 2 -->
-                        <div class="bg-white p-6 border border-zinc-200 hover:border-black transition-colors group">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Documents</h3>
-                                <FileText :size="20" class="text-zinc-300 group-hover:text-black transition-colors" />
-                            </div>
-                            <div class="text-5xl font-light text-black mb-2 tracking-tighter">{{ totalDocs }}</div>
-                        </div>
-
-                         <!-- Stat Card 3 -->
-                        <div class="bg-white p-6 border border-zinc-200 hover:border-black transition-colors group">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Clients Actifs</h3>
-                                <BarChart3 :size="20" class="text-zinc-300 group-hover:text-black transition-colors" />
-                            </div>
-                            <div class="text-5xl font-light text-black mb-2 tracking-tighter">{{ activeClientsCheck }}</div>
-                        </div>
+                    <div class="px-8 pb-8">
+                        <DashboardStats />
                     </div>
                 </div>
 
@@ -403,6 +422,16 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <!-- Drive View -->
                 <div v-else-if="activeView === 'drive'" class="h-full">
                     <InternalDrive />
+                </div>
+
+                <!-- Invoice View -->
+                <div v-else-if="activeView === 'invoice'" class="h-full overflow-y-auto">
+                    <InvoiceCreator />
+                </div>
+
+                <!-- Team View -->
+                <div v-else-if="activeView === 'team'" class="h-full overflow-y-auto">
+                    <TeamManager />
                 </div>
 
                 <!-- Clients List View -->

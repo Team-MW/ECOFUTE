@@ -230,7 +230,7 @@ const openNewEventDialog = () => {
     // Initialize form
     eventForm.value = {
         title: '',
-        date: selectedDate.value ? selectedDate.value.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        date: (selectedDate.value ? selectedDate.value.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]) || '',
         time: '',
         description: '',
         color: '#3b82f6'
@@ -243,7 +243,7 @@ const openEditEventDialog = (event: CalendarEvent) => {
     // Initialize form with event data
     eventForm.value = {
         title: event.title || '',
-        date: event.date instanceof Date ? event.date.toISOString().split('T')[0] : new Date(event.date).toISOString().split('T')[0],
+        date: (event.date instanceof Date ? event.date.toISOString().split('T')[0] : new Date(event.date).toISOString().split('T')[0]) || '',
         time: event.time || '',
         description: event.description || '',
         color: event.color

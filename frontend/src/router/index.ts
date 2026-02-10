@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AdminDashboard from '../pages/admin/AdminDashboard.vue'
+import Login from '../pages/Login.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -7,7 +8,12 @@ const router = createRouter({
         {
             path: '/',
             name: 'home',
-            redirect: '/admin' // Redirect to admin for now as requested to focus on admin
+            redirect: '/admin'
+        },
+        {
+            path: '/login',
+            name: 'login',
+            component: Login
         },
         {
             path: '/admin',
