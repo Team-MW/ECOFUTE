@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { Plus, Search, Trash2, Edit2, TrendingUp, DollarSign, Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Plus, Search, Trash2, Edit2, TrendingUp, DollarSign, Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -16,13 +16,24 @@ interface Sale {
     status: string
 }
 
+interface Client {
+    id: number
+    firstName: string
+    lastName: string
+    company?: string
+}
+
 // State
 const sales = ref<Sale[]>([])
+const clients = ref<Client[]>([])
 const isLoading = ref(false)
 const showSaleDialog = ref(false)
 const editingSale = ref<Sale | null>(null)
 const searchTerm = ref('')
 const currentMonth = ref(new Date())
+
+const isExistingClient = ref(true)
+const selectedClientId = ref<string>('')
 
 const saleForm = ref({
     title: '',
@@ -35,6 +46,7 @@ const saleForm = ref({
 // Lifecycle
 onMounted(() => {
     fetchSales()
+    fetchClients()
 })
 
 // API Interactions
@@ -47,6 +59,15 @@ const fetchSales = async () => {
         console.error("Failed to fetch sales", err)
     } finally {
         isLoading.value = false
+    }
+}
+
+const fetchClients = async () => {
+    try {
+        const res = await axios.get('/api/clients')
+        clients.value = res.data
+    } catch (err) {
+        console.error("Failed to fetch clients", err)
     }
 }
 
@@ -97,6 +118,15 @@ const resetForm = () => {
         date: new Date().toISOString().split('T')[0],
         status: 'Payé'
     }
+    selectedClientId.value = ''
+    isExistingClient.value = true
+}
+
+const handleClientSelect = () => {
+    const client = clients.value.find(c => c.id.toString() === selectedClientId.value)
+    if (client) {
+        saleForm.value.title = client.company || `${client.firstName} ${client.lastName}`
+    }
 }
 
 const openNewSaleDialog = () => {
@@ -114,6 +144,9 @@ const openEditSaleDialog = (sale: Sale) => {
         date: new Date(sale.date).toISOString().split('T')[0],
         status: sale.status
     }
+    // Check if title matches a client to pre-select? OPTIONAL
+    // For now, simpler to treat edit as "Manual" or just keep title as is.
+    isExistingClient.value = false 
     showSaleDialog.value = true
 }
 
@@ -312,13 +345,45 @@ const salesCount = computed(() => filteredSales.value.length)
                 </DialogHeader>
 
                 <form @submit.prevent="saveSale" class="p-6 space-y-5">
-                    <div class="space-y-1.5">
-                        <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Titre / Client</label>
-                        <Input v-model="saleForm.title" required placeholder="Ex: Prestation Site Web" class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                    
+                    <!-- Client / Title Selection Section -->
+                    <div class="space-y-3 pb-3 border-b border-zinc-100">
+                        <div class="flex items-center justify-between">
+                            <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                                {{ isExistingClient ? 'Client' : 'Titre / Intitulé' }}
+                            </label>
+                            <button 
+                                type="button" 
+                                @click="isExistingClient = !isExistingClient" 
+                                class="text-xs font-bold text-black bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-sm transition-colors uppercase tracking-wide"
+                            >
+                                {{ isExistingClient ? 'Saisir manuellement' : 'Choisir un client' }}
+                            </button>
+                        </div>
+
+                        <div v-if="isExistingClient" class="relative">
+                             <select 
+                                v-model="selectedClientId" 
+                                @change="handleClientSelect"
+                                required
+                                class="w-full h-10 px-3 pr-10 rounded-sm border border-zinc-300 focus:border-black bg-white text-sm font-medium outline-none appearance-none"
+                            >
+                                <option value="" disabled>Sélectionner un client...</option>
+                                <option v-for="client in clients" :key="client.id" :value="client.id">
+                                    {{ client.company ? client.company + ' (' + client.firstName + ' ' + client.lastName + ')' : client.firstName + ' ' + client.lastName }}
+                                </option>
+                            </select>
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <ChevronDown :size="14" class="text-zinc-500" />
+                            </div>
+                        </div>
+                        <div v-else>
+                            <Input v-model="saleForm.title" required placeholder="Ex: Prestation Site Web" class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
-                        <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Description</label>
+                        <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Description (Optionnel)</label>
                         <textarea 
                             v-model="saleForm.description" 
                             placeholder="Détails supplémentaires..." 
