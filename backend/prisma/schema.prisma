@@ -54,7 +54,7 @@ model Event {
 model Sale {
   id          Int      @id @default(autoincrement())
   title       String   // Description of the sale or client name
-  description String?  // Detailed description of the sale
+  description String?  @db.Text // Detailed description of the sale (JSON)
   amount      Float    // Value of the sale
   date        DateTime // Date of the sale
   status      String   @default("Payé") // Payé, En attente, Annulé

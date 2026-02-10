@@ -27,6 +27,7 @@ const clients = ref<Client[]>([])
 const selectedClientId = ref<string>('')
 const clientName = ref('')
 const clientEmail = ref('')
+const clientBrand = ref('') // New State
 const isSaving = ref(false)
 const showSettingsDialog = ref(false)
 
@@ -69,8 +70,9 @@ const fetchClients = async () => {
 const handleClientSelect = () => {
     const client = clients.value.find(c => c.id.toString() === selectedClientId.value)
     if (client) {
-        clientName.value = client.company || `${client.firstName} ${client.lastName}`
+        clientName.value = `${client.firstName} ${client.lastName}`
         clientEmail.value = client.email
+        clientBrand.value = client.company || ''
     }
 }
 
@@ -100,21 +102,21 @@ const saveInvoice = async () => {
     isSaving.value = true
     try {
         // Prepare payload for Sales API
-        // We store detailed invoice data in the description for now
         const invoiceData = {
             number: invoiceNumber.value,
             clientId: selectedClientId.value,
             clientName: clientName.value,
+            clientBrand: clientBrand.value,
             clientEmail: clientEmail.value,
             items: items.value,
             subtotal: subtotal.value,
             tax: taxAmount.value,
             total: total.value,
-            companyDetails: companyDetails.value // Save snapshot of company details
+            companyDetails: companyDetails.value
         }
 
         await axios.post('/api/sales', {
-            title: `Facture ${invoiceNumber.value} - ${clientName.value}`,
+            title: `Facture ${invoiceNumber.value} - ${clientBrand.value || clientName.value}`,
             description: JSON.stringify(invoiceData),
             amount: total.value,
             date: invoiceDate.value,
@@ -166,25 +168,25 @@ onMounted(fetchClients)
                     <Save v-else :size="16" class="mr-2" /> Enregistrer
                 </Button>
                 <Button @click="printInvoice" class="bg-black text-white hover:bg-zinc-800 h-10">
-                    <Printer :size="16" class="mr-2" /> Imprimer / PDF
+                    <Printer :size="16" class="mr-2" /> Télécharger PDF
                 </Button>
             </div>
         </div>
 
         <!-- Invoice Preview / Editor -->
-        <div class="bg-white border border-zinc-200 shadow-sm p-8 md:p-12 print:border-0 print:shadow-none print:p-0 relative">
+        <div class="bg-white border border-zinc-200 shadow-sm p-8 md:p-12 print:border-0 print:shadow-none print:p-0 relative print:w-full print:max-w-none">
             
             <!-- Invoice Header -->
             <div class="flex flex-col md:flex-row justify-between mb-12">
                 <div>
-                     <div class="flex items-center gap-3 mb-6">
-                        <div v-if="companyDetails.logoUrl" class="w-16 h-16 object-contain overflow-hidden rounded-sm">
+                     <div class="flex items-center gap-4 mb-6">
+                        <div v-if="companyDetails.logoUrl" class="w-32 h-32 object-contain overflow-hidden rounded-sm">
                             <img :src="companyDetails.logoUrl" alt="Logo" class="w-full h-full object-contain" />
                         </div>
-                        <div v-else class="w-12 h-12 bg-black flex items-center justify-center text-white font-bold rounded-sm text-xl" :style="{ backgroundColor: companyDetails.accentColor }">
+                        <div v-else class="w-16 h-16 bg-black flex items-center justify-center text-white font-bold rounded-sm text-2xl" :style="{ backgroundColor: companyDetails.accentColor }">
                             {{ companyDetails.name.charAt(0) }}
                         </div>
-                        <span class="text-2xl font-bold tracking-tighter">{{ companyDetails.name }}</span>
+                        <span class="text-3xl font-bold tracking-tighter self-center">{{ companyDetails.name }}</span>
                     </div>
                     <div class="text-sm text-zinc-500 space-y-1">
                         <p>{{ companyDetails.address1 }}</p>
@@ -194,15 +196,15 @@ onMounted(fetchClients)
                     </div>
                 </div>
                 <div class="mt-8 md:mt-0 text-right">
-                    <h2 class="text-4xl font-light text-zinc-200 uppercase tracking-widest mb-4">Facture</h2>
+                    <h2 class="text-5xl font-light text-zinc-100 uppercase tracking-widest mb-4">Facture</h2>
                     <div class="flex flex-col items-end gap-2">
                         <div class="flex items-center gap-4">
                             <span class="text-sm font-bold uppercase tracking-wider text-zinc-400">Numéro</span>
-                            <Input v-model="invoiceNumber" class="w-40 text-right font-mono text-sm h-8" />
+                            <Input v-model="invoiceNumber" class="w-40 text-right font-mono text-sm h-8 border-transparent focus:border-black hover:border-zinc-200" />
                         </div>
                         <div class="flex items-center gap-4">
                             <span class="text-sm font-bold uppercase tracking-wider text-zinc-400">Date</span>
-                            <Input type="date" v-model="invoiceDate" class="w-40 text-right text-sm h-8" />
+                            <Input type="date" v-model="invoiceDate" class="w-40 text-right text-sm h-8 border-transparent focus:border-black hover:border-zinc-200" />
                         </div>
                     </div>
                 </div>
@@ -229,12 +231,16 @@ onMounted(fetchClients)
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-4">
                         <div class="space-y-1.5">
-                            <label class="text-[10px] uppercase font-bold text-zinc-400">Nom du client / Société</label>
-                            <Input v-model="clientName" placeholder="Entrez le nom du client" class="bg-zinc-50 border-zinc-200 focus:border-black PrintInput" />
+                            <label class="text-[10px] uppercase font-bold text-zinc-400 print:hidden">Marque / Enseigne</label>
+                            <Input v-model="clientBrand" placeholder="Marque ou Entreprise" class="bg-zinc-50 border-zinc-200 focus:border-black font-bold text-lg print:bg-transparent print:border-none print:px-0 print:text-black" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] uppercase font-bold text-zinc-400 print:hidden">Nom du contact</label>
+                            <Input v-model="clientName" placeholder="Nom du contact" class="bg-zinc-50 border-zinc-200 focus:border-black print:bg-transparent print:border-none print:px-0 print:text-black" />
                         </div>
                          <div class="space-y-1.5">
-                            <label class="text-[10px] uppercase font-bold text-zinc-400">Email (Optionnel)</label>
-                            <Input v-model="clientEmail" placeholder="client@exemple.com" class="bg-zinc-50 border-zinc-200 focus:border-black PrintInput" />
+                            <label class="text-[10px] uppercase font-bold text-zinc-400 print:hidden">Email (Optionnel)</label>
+                            <Input v-model="clientEmail" placeholder="client@exemple.com" class="bg-zinc-50 border-zinc-200 focus:border-black print:bg-transparent print:border-none print:px-0 print:text-black" />
                         </div>
                     </div>
                 </div>
@@ -255,13 +261,13 @@ onMounted(fetchClients)
                     <tbody class="divide-y divide-zinc-100">
                         <tr v-for="item in items" :key="item.id" class="group">
                             <td class="py-4 pr-4">
-                                <Input v-model="item.description" placeholder="Description du service" class="border-transparent hover:border-zinc-200 focus:border-black px-0 bg-transparent" />
+                                <Input v-model="item.description" placeholder="Description du service" class="border-transparent hover:border-zinc-200 focus:border-black px-0 bg-transparent print:border-none print:text-black w-full" />
                             </td>
                             <td class="py-4 px-2">
-                                <Input type="number" v-model="item.quantity" min="1" class="text-center border-transparent hover:border-zinc-200 focus:border-black px-0 bg-transparent" />
+                                <Input type="number" v-model="item.quantity" min="1" class="text-center border-transparent hover:border-zinc-200 focus:border-black px-0 bg-transparent print:border-none print:text-black w-full" />
                             </td>
                             <td class="py-4 px-2">
-                                <Input type="number" v-model="item.price" min="0" step="0.01" class="text-right border-transparent hover:border-zinc-200 focus:border-black px-0 bg-transparent" />
+                                <Input type="number" v-model="item.price" min="0" step="0.01" class="text-right border-transparent hover:border-zinc-200 focus:border-black px-0 bg-transparent print:border-none print:text-black w-full" />
                             </td>
                             <td class="py-4 pl-4 text-right font-mono text-zinc-700">
                                 {{ formatCurrency(item.quantity * item.price) }}
@@ -280,7 +286,7 @@ onMounted(fetchClients)
             </div>
 
             <!-- Totals -->
-            <div class="flex justify-end">
+            <div class="flex justify-end mb-20">
                 <div class="w-64 space-y-3">
                     <div class="flex justify-between text-sm text-zinc-600">
                         <span>Sous-total</span>
@@ -298,9 +304,10 @@ onMounted(fetchClients)
             </div>
 
             <!-- Footer Notes -->
-            <div class="mt-20 pt-8 border-t border-zinc-100 text-xs text-zinc-400 text-center">
+            <div class="mt-auto pt-8 border-t border-zinc-100 text-xs text-zinc-400 text-center">
                 <p class="mb-1">Merci de votre confiance.</p>
-                <p>Conditions de paiement : 30 jours fin de mois. Pénalités de retard : 3 fois le taux d'intérêt légal.</p>
+                <p class="mb-4">Conditions de paiement : 30 jours fin de mois. Pénalités de retard : 3 fois le taux d'intérêt légal.</p>
+                <p class="text-[10px] uppercase tracking-widest font-bold text-zinc-300 print:text-zinc-400">Réalisé par EcoFuté</p>
             </div>
         </div>
 
@@ -318,11 +325,11 @@ onMounted(fetchClients)
                     <div class="space-y-2">
                         <Label class="text-xs font-bold uppercase text-zinc-500 tracking-wider">Logo</Label>
                         <div class="flex items-center gap-4 bg-zinc-50 p-3 rounded-md border border-zinc-100">
-                            <div v-if="companyDetails.logoUrl" class="w-16 h-16 border border-zinc-200 rounded-md p-1 bg-white">
+                            <div v-if="companyDetails.logoUrl" class="w-32 h-32 border border-zinc-200 rounded-md p-1 bg-white">
                                 <img :src="companyDetails.logoUrl" class="w-full h-full object-contain" />
                             </div>
-                            <div v-else class="w-16 h-16 border border-zinc-200 border-dashed rounded-md flex items-center justify-center bg-white text-zinc-300">
-                                <ImageIcon :size="24" />
+                            <div v-else class="w-32 h-32 border border-zinc-200 border-dashed rounded-md flex items-center justify-center bg-white text-zinc-300">
+                                <ImageIcon :size="48" />
                             </div>
                             <div class="flex-1">
                                 <Input type="file" accept="image/*" @change="handleLogoUpload" class="cursor-pointer bg-white border-zinc-200 text-sm file:bg-black file:text-white file:border-0 file:rounded-sm file:px-2 file:py-1 file:mr-2 file:text-xs hover:bg-zinc-50" />
@@ -394,6 +401,28 @@ onMounted(fetchClients)
 
     .print\:p-0 {
         padding: 0 !important;
+    }
+
+    .print\:bg-transparent {
+        background: transparent !important;
+    }
+
+    .print\:border-none {
+        border: none !important;
+    }
+
+    .print\:text-black {
+        color: black !important;
+    }
+
+    .print\:w-full {
+        width: 100% !important;
+    }
+
+    /* Force background graphics */
+    body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 }
 </style>
