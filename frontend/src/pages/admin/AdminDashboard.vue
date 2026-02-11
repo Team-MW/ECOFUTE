@@ -5,7 +5,8 @@ import { useAuth, UserButton, useUser } from '@clerk/vue'
 import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
-    Trash2, Lock, ArrowLeft, Calendar, FilePlus, ShieldCheck
+    Trash2, Lock, ArrowLeft, Calendar, FilePlus, ShieldCheck,
+    TrendingUp, BarChart3, Edit3
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +39,12 @@ interface Client {
     firstName: string | null;
     lastName: string | null;
     company: string | null;
+    address?: string | null;
+    city?: string | null;
+    zipCode?: string | null;
+    phone?: string | null;
+    siret?: string | null;
+    tvaNumber?: string | null;
     status: string;
     createdAt: string;
     documents: Document[];
@@ -56,9 +63,25 @@ watchEffect(() => {
 
 const users = ref<Client[]>([])
 const selectedUser = ref<Client | null>(null)
+// We use a separate form object to handle edits and avoid null type issues with v-model
+const editForm = ref({
+    id: 0,
+    firstName: '',
+    lastName: '',
+    email: '',
+    company: '',
+    address: '',
+    city: '',
+    zipCode: '',
+    phone: '',
+    siret: '',
+    tvaNumber: ''
+})
+
 const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team'>('clients')
 const searchTerm = ref('')
 const showCreateForm = ref(false)
+const showEditForm = ref(false)
 const isLoading = ref(false)
 const showSuccess = ref(false)
 const isMobileMenuOpen = ref(false)
@@ -73,9 +96,12 @@ const filteredUsers = computed(() => {
     return users.value.filter(user => 
         (user.firstName?.toLowerCase() || '').includes(query) || 
         (user.lastName?.toLowerCase() || '').includes(query) ||
-        (user.email?.toLowerCase() || '').includes(query)
+        (user.email?.toLowerCase() || '').includes(query) ||
+        (user.company?.toLowerCase() || '').includes(query)
     )
 })
+
+const selectedUserId = computed(() => selectedUser.value ? selectedUser.value.id : undefined)
 
 // --- Methods ---
 
@@ -117,7 +143,13 @@ const handleCreateUser = async (e: Event) => {
             firstName: formData.get('firstName') as string,
             lastName: formData.get('lastName') as string,
             email: formData.get('email') as string,
-            company: formData.get('company') as string
+            company: formData.get('company') as string,
+            address: formData.get('address') as string,
+            city: formData.get('city') as string,
+            zipCode: formData.get('zipCode') as string,
+            phone: formData.get('phone') as string,
+            siret: formData.get('siret') as string,
+            tvaNumber: formData.get('tvaNumber') as string
         }
 
         const res = await axios.post('/api/clients', payload)
@@ -130,6 +162,54 @@ const handleCreateUser = async (e: Event) => {
     } catch (err: any) {
         setIsLoading(false)
         alert("Erreur: " + (err.response?.data?.error || err.message))
+    }
+}
+
+const openEditUser = () => {
+    if (!selectedUser.value) return
+    const u = selectedUser.value
+    editForm.value = {
+        id: u.id,
+        firstName: u.firstName || '',
+        lastName: u.lastName || '',
+        email: u.email || '',
+        company: u.company || '',
+        address: u.address || '',
+        city: u.city || '',
+        zipCode: u.zipCode || '',
+        phone: u.phone || '',
+        siret: u.siret || '',
+        tvaNumber: u.tvaNumber || ''
+    }
+    showEditForm.value = true
+}
+
+const handleUpdateUser = async () => {
+    setIsLoading(true)
+    
+    try {
+        const res = await axios.put(`/api/clients/${editForm.value.id}`, editForm.value)
+        
+        // Update local state
+        const updatedClient = res.data
+        
+        // Update users list
+        const index = users.value.findIndex(u => u.id === updatedClient.id)
+        if (index !== -1) {
+            users.value[index] = updatedClient
+        }
+        
+        // Update selected user view if it's the same user
+        if (selectedUser.value?.id === updatedClient.id) {
+            selectedUser.value = { ...selectedUser.value, ...updatedClient }
+        }
+
+        showEditForm.value = false
+        alert("Client mis à jour avec succès !")
+    } catch (err: any) {
+        alert("Erreur mise à jour: " + (err.response?.data?.error || err.message))
+    } finally {
+        setIsLoading(false)
     }
 }
 
@@ -180,6 +260,7 @@ function setIsLoading(val: boolean) {
 }
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString()
+
 
 // --- Lifecycle ---
 // We fetch users after PIN authentication
@@ -341,9 +422,14 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
             <div class="flex-1 overflow-auto p-4 md:p-8">
                 <!-- User Details View -->
                 <div v-if="selectedUser" class="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <button @click="selectedUser = null" class="mb-8 text-sm text-zinc-500 hover:text-black flex items-center gap-2 font-medium transition-colors">
-                        <ArrowLeft :size="16" /> Retour à la liste
-                    </button>
+                    <div class="flex justify-between items-center mb-8">
+                         <button @click="selectedUser = null" class="text-sm text-zinc-500 hover:text-black flex items-center gap-2 font-medium transition-colors">
+                            <ArrowLeft :size="16" /> Retour à la liste
+                        </button>
+                         <Button @click="openEditUser" variant="outline" class="rounded-none border-zinc-200 h-8 text-xs uppercase tracking-wider">
+                            <Edit3 :size="14" class="mr-2" /> Modifier
+                        </Button>
+                    </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <!-- Left Column: User Info -->
@@ -372,6 +458,23 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                     <div class="flex justify-between items-center text-sm">
                                         <span class="text-zinc-500">Inscription</span>
                                         <span class="font-medium text-black">{{ formatDate(selectedUser.createdAt) }}</span>
+                                    </div>
+                                     <div v-if="selectedUser.phone" class="flex justify-between items-center text-sm">
+                                        <span class="text-zinc-500">Téléphone</span>
+                                        <span class="font-medium text-black">{{ selectedUser.phone }}</span>
+                                    </div>
+                                    <div v-if="selectedUser.address || selectedUser.city" class="text-sm border-t border-zinc-50 pt-3 mt-3">
+                                        <span class="text-zinc-500 block mb-1">Adresse</span>
+                                        <span class="font-medium text-black block">{{ selectedUser.address }}</span>
+                                        <span class="font-medium text-black block">{{ selectedUser.zipCode }} {{ selectedUser.city }}</span>
+                                    </div>
+                                    <div v-if="selectedUser.siret" class="text-sm border-t border-zinc-50 pt-3 mt-3">
+                                        <span class="text-zinc-500 block mb-1">SIRET</span>
+                                        <span class="font-medium text-black font-mono text-xs">{{ selectedUser.siret }}</span>
+                                    </div>
+                                     <div v-if="selectedUser.tvaNumber" class="text-sm pt-1">
+                                        <span class="text-zinc-500 block mb-1">TVA</span>
+                                        <span class="font-medium text-black font-mono text-xs">{{ selectedUser.tvaNumber }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -427,7 +530,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 
                 <!-- Invoice View -->
                 <div v-else-if="activeView === 'invoice'" class="h-full overflow-y-auto">
-                    <InvoiceCreator />
+                    <InvoiceCreator :preSelectedClientId="selectedUserId" />
                 </div>
 
                 <!-- Team View -->
@@ -517,8 +620,8 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
         </main>
 
         <!-- Create User Modal -->
-        <Dialog v-model:open="showCreateForm">
-            <DialogContent class="sm:max-w-md rounded-none border-zinc-200">
+         <Dialog v-model:open="showCreateForm">
+            <DialogContent class="sm:max-w-2xl rounded-none border-zinc-200 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle class="text-xl font-bold tracking-tight">Nouveau Client</DialogTitle>
                     <DialogDescription>Créez manuellement un client pour l'ajouter à EcoFuté.</DialogDescription>
@@ -526,26 +629,138 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <form @submit.prevent="handleCreateUser" class="space-y-4 pt-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1">
-                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Prénom</label>
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Prénom *</label>
                             <Input name="firstName" required placeholder="Ex: Thomas" class="rounded-none border-zinc-200 focus:border-black" />
                         </div>
                         <div class="space-y-1">
-                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nom</label>
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nom *</label>
                             <Input name="lastName" required placeholder="Ex: Martin" class="rounded-none border-zinc-200 focus:border-black" />
                         </div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Email</label>
-                        <Input type="email" name="email" required placeholder="client@exemple.com" class="rounded-none border-zinc-200 focus:border-black" />
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                         <div class="space-y-1">
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Email *</label>
+                            <Input type="email" name="email" required placeholder="client@exemple.com" class="rounded-none border-zinc-200 focus:border-black" />
+                        </div>
+                         <div class="space-y-1">
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Téléphone</label>
+                            <Input name="phone" placeholder="06 12 34 56 78" class="rounded-none border-zinc-200 focus:border-black" />
+                        </div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Société</label>
-                        <Input name="company" placeholder="Ex: Société SAS" class="rounded-none border-zinc-200 focus:border-black" />
+                    
+                    <div class="border-t border-zinc-100 pt-4 mt-4">
+                        <h4 class="text-sm font-bold mb-3">Société & Adresse</h4>
+                        <div class="space-y-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Société</label>
+                                <Input name="company" placeholder="Ex: Société SAS" class="rounded-none border-zinc-200 focus:border-black" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Adresse</label>
+                                <Input name="address" placeholder="10 Rue de la Paix" class="rounded-none border-zinc-200 focus:border-black" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Code Postal</label>
+                                    <Input name="zipCode" placeholder="75000" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ville</label>
+                                    <Input name="city" placeholder="Paris" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                            </div>
+                             <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">SIRET</label>
+                                    <Input name="siret" placeholder="123 456 789 00012" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">N° TVA</label>
+                                    <Input name="tvaNumber" placeholder="FR 12 345678900" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    
                     <DialogFooter class="mt-6">
                         <Button type="button" variant="outline" @click="showCreateForm = false" class="rounded-none border-zinc-200">Annuler</Button>
                         <Button type="submit" :disabled="isLoading" class="bg-black hover:bg-zinc-800 text-white rounded-none">
                             <Loader v-if="isLoading" class="animate-spin mr-2" :size="16" /> Créer le client
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Edit User Modal -->
+         <Dialog v-model:open="showEditForm">
+            <DialogContent class="sm:max-w-2xl rounded-none border-zinc-200 max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle class="text-xl font-bold tracking-tight">Modifier Client</DialogTitle>
+                    <DialogDescription>Mettre à jour les informations du client.</DialogDescription>
+                </DialogHeader>
+                <form @submit.prevent="handleUpdateUser" class="space-y-4 pt-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Prénom *</label>
+                            <Input v-model="editForm.firstName" required class="rounded-none border-zinc-200 focus:border-black" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nom *</label>
+                            <Input v-model="editForm.lastName" required class="rounded-none border-zinc-200 focus:border-black" />
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                         <div class="space-y-1">
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Email *</label>
+                            <Input type="email" v-model="editForm.email" required class="rounded-none border-zinc-200 focus:border-black" />
+                        </div>
+                         <div class="space-y-1">
+                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Téléphone</label>
+                            <Input v-model="editForm.phone" class="rounded-none border-zinc-200 focus:border-black" />
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-zinc-100 pt-4 mt-4">
+                        <h4 class="text-sm font-bold mb-3">Société & Adresse</h4>
+                        <div class="space-y-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Société</label>
+                                <Input v-model="editForm.company" class="rounded-none border-zinc-200 focus:border-black" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Adresse</label>
+                                <Input v-model="editForm.address" class="rounded-none border-zinc-200 focus:border-black" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Code Postal</label>
+                                    <Input v-model="editForm.zipCode" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ville</label>
+                                    <Input v-model="editForm.city" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                            </div>
+                             <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">SIRET</label>
+                                    <Input v-model="editForm.siret" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">N° TVA</label>
+                                    <Input v-model="editForm.tvaNumber" class="rounded-none border-zinc-200 focus:border-black" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <DialogFooter class="mt-6">
+                        <Button type="button" variant="outline" @click="showEditForm = false" class="rounded-none border-zinc-200">Annuler</Button>
+                        <Button type="submit" :disabled="isLoading" class="bg-black hover:bg-zinc-800 text-white rounded-none">
+                            <Loader v-if="isLoading" class="animate-spin mr-2" :size="16" /> Mettre à jour
                         </Button>
                     </DialogFooter>
                 </form>

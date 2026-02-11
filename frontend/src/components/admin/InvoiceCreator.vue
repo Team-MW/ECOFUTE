@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import axios from 'axios'
 import { Plus, Trash2, Save, Loader, Settings, Image as ImageIcon, Search, Download, Eye, Edit3 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+
+const props = defineProps<{
+    preSelectedClientId?: number
+}>()
 
 interface InvoiceItem {
     id: number
@@ -24,6 +28,11 @@ interface Client {
     email: string
     company?: string
     address?: string
+    city?: string
+    zipCode?: string
+    phone?: string
+    siret?: string
+    tvaNumber?: string
 }
 
 // State
@@ -33,6 +42,9 @@ const clientName = ref('')
 const clientEmail = ref('')
 const clientBrand = ref('')
 const clientAddress = ref('')
+const clientPhone = ref('')
+const clientSiret = ref('')
+const clientTva = ref('')
 const isSaving = ref(false)
 const isGeneratingPdf = ref(false)
 const showSettingsDialog = ref(false)
@@ -51,7 +63,8 @@ const companyDetails = ref({
     bic: "",
     logoUrl: '',
     accentColor: '#18181b', // equivalent to zinc-900
-    notes: "Merci de votre confiance. Conditions de paiement : 30 jours fin de mois."
+    notes: "Merci de votre confiance. Conditions de paiement : 30 jours fin de mois.",
+    vatEnabled: true
 })
 
 const invoiceDate = ref(new Date().toISOString().split('T')[0])
@@ -59,7 +72,7 @@ const dueDate = ref(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(
 const invoiceNumber = ref(`FAC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`)
 
 const items = ref<InvoiceItem[]>([
-    { id: 1, description: 'Prestation de service', quantity: 1, price: 0 }
+     { id: 1, description: 'Prestation de service', quantity: 1, price: 0 }
 ])
 
 // Computed
@@ -68,28 +81,73 @@ const subtotal = computed(() => {
 })
 
 const taxRate = 0.20 // 20% VAT
-const taxAmount = computed(() => subtotal.value * taxRate)
+const taxAmount = computed(() => companyDetails.value.vatEnabled ? subtotal.value * taxRate : 0)
 const total = computed(() => subtotal.value + taxAmount.value)
 
 // Methods
-const fetchClients = async () => {
-    try {
-        const res = await axios.get('/api/clients')
-        clients.value = res.data
-    } catch (e) {
-        console.error("Failed to fetch clients", e)
+const updateItemTotal = (item: InvoiceItem, newTotal: string) => {
+    const totalVal = parseFloat(newTotal)
+    if (!isNaN(totalVal) && item.quantity > 0) {
+        item.price = totalVal / item.quantity
     }
 }
 
 const handleClientSelect = () => {
     const client = clients.value.find(c => c.id.toString() === selectedClientId.value)
     if (client) {
-        clientName.value = `${client.firstName} ${client.lastName}`
-        clientEmail.value = client.email
+        clientName.value = `${client.firstName || ''} ${client.lastName || ''}`.trim()
+        clientEmail.value = client.email || ''
         clientBrand.value = client.company || ''
-        clientAddress.value = '' // Reset address as it might not be in the simple client object
+        
+        // Format address: "123 Rue, 75000 Paris"
+        const parts = []
+        if (client.address) parts.push(client.address)
+        
+        const zipCity = []
+        if (client.zipCode) zipCity.push(client.zipCode)
+        if (client.city) zipCity.push(client.city)
+        
+        if (zipCity.length > 0) parts.push(zipCity.join(' '))
+            
+        clientAddress.value = parts.join(', ')
+        
+        clientPhone.value = client.phone || ''
+        clientSiret.value = client.siret || ''
+        clientTva.value = client.tvaNumber || ''
+    } else {
+        // Reset if no client selected
+        clientName.value = ''
+        clientEmail.value = ''
+        clientBrand.value = ''
+        clientAddress.value = ''
+        clientPhone.value = ''
+        clientSiret.value = ''
+        clientTva.value = ''
     }
 }
+
+const fetchClients = async () => {
+    try {
+        const res = await axios.get('/api/clients')
+        clients.value = res.data
+        
+        if (props.preSelectedClientId) {
+            selectedClientId.value = props.preSelectedClientId.toString()
+            nextTick(() => {
+                handleClientSelect()
+            })
+        }
+    } catch (e) {
+        console.error("Failed to fetch clients", e)
+    }
+}
+
+watch(() => props.preSelectedClientId, (newVal) => {
+    if (newVal) {
+        selectedClientId.value = newVal.toString()
+        handleClientSelect()
+    }
+})
 
 const addItem = () => {
     items.value.push({
@@ -229,6 +287,21 @@ onMounted(fetchClients)
                 <p class="text-sm text-gray-500 mt-1">Créez, personnalisez et imprimez vos factures simplement.</p>
             </div>
             <div class="flex flex-wrap gap-3">
+                <div class="relative">
+                    <select 
+                        v-model="selectedClientId" 
+                        @change="handleClientSelect"
+                        class="h-10 pl-3 pr-8 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-black appearance-none truncate min-w-[200px]"
+                    >
+                        <option value="" disabled selected>Sélectionner un client...</option>
+                        <option v-for="client in clients" :key="client.id" :value="client.id.toString()">
+                            {{ client.company ? `${client.company} (${client.firstName} ${client.lastName})` : `${client.firstName} ${client.lastName}` }}
+                        </option>
+                    </select>
+                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-500">
+                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
                  <Button @click="togglePreview" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
                     <Edit3 v-if="isPreview" :size="16" class="mr-2" />
                     <Eye v-else :size="16" class="mr-2" />
@@ -259,8 +332,8 @@ onMounted(fetchClients)
                         <!-- Left: Company Info -->
                         <div class="w-1/2 pr-8">
                             <div class="mb-6">
-                                <div v-if="companyDetails.logoUrl" class="h-24 w-auto object-contain overflow-hidden rounded-sm mb-4">
-                                    <img :src="companyDetails.logoUrl" alt="Logo" class="h-full object-contain" />
+                                <div v-if="companyDetails.logoUrl" class="h-32 mb-4 flex items-center justify-start">
+                                    <img :src="companyDetails.logoUrl" alt="Logo" class="h-full w-auto object-contain" />
                                 </div>
                                 <div v-else class="h-16 w-16 bg-gray-900 text-white flex items-center justify-center font-bold text-2xl rounded-lg mb-4" :style="{ backgroundColor: companyDetails.accentColor }">
                                     {{ companyDetails.name.substring(0, 2).toUpperCase() }}
@@ -332,12 +405,22 @@ onMounted(fetchClients)
                                     </div>
                                     <Input v-model="clientAddress" placeholder="Adresse complète (Rue, CP, Ville)" class="text-sm text-gray-600 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
                                     <Input v-model="clientEmail" placeholder="Email (pour l'envoi)" class="text-sm text-gray-500 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
+                                    <Input v-model="clientPhone" placeholder="Téléphone" class="text-sm text-gray-500 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
+                                    <div class="flex gap-4 mt-2">
+                                        <Input v-model="clientSiret" placeholder="SIRET Client" class="text-xs text-gray-400 border-none px-0 h-5 focus:ring-0 bg-transparent placeholder:text-gray-300 w-32 hover:bg-gray-50" />
+                                        <Input v-model="clientTva" placeholder="N° TVA Client" class="text-xs text-gray-400 border-none px-0 h-5 focus:ring-0 bg-transparent placeholder:text-gray-300 w-32 hover:bg-gray-50" />
+                                    </div>
                                 </template>
                                 <template v-else>
                                     <div v-if="clientBrand" class="text-lg font-bold text-gray-900 h-8 flex items-center">{{ clientBrand }}</div>
                                     <div v-if="clientName" class="text-base text-gray-800 h-6 flex items-center">{{ clientName }}</div>
                                     <div v-if="clientAddress" class="text-sm text-gray-600 h-6 flex items-center">{{ clientAddress }}</div>
                                     <div v-if="clientEmail" class="text-sm text-gray-500 h-6 flex items-center">{{ clientEmail }}</div>
+                                    <div v-if="clientPhone" class="text-sm text-gray-500 h-6 flex items-center">{{ clientPhone }}</div>
+                                    <div class="flex gap-4 mt-1 text-xs text-gray-400" v-if="clientSiret || clientTva">
+                                        <span v-if="clientSiret">SIRET: {{ clientSiret }}</span>
+                                        <span v-if="clientTva">TVA: {{ clientTva }}</span>
+                                    </div>
                                 </template>
                             </div>
                         </div>
@@ -373,7 +456,11 @@ onMounted(fetchClients)
                                         <span v-else>{{ formatCurrency(item.price) }}</span>
                                     </td>
                                     <td class="py-3 px-2 text-right font-mono text-gray-900 font-medium align-top">
-                                        {{ formatCurrency(item.quantity * item.price) }}
+                                        <div v-if="!isPreview" class="relative">
+                                            <Input type="number" :value="item.quantity * item.price" @input="(e: any) => updateItemTotal(item, e.target.value)" class="text-right border-none focus:ring-0 bg-transparent p-0 text-sm text-gray-900 font-medium h-full w-full pr-6" />
+                                            <span class="absolute right-0 top-0 text-gray-400 text-xs">€</span>
+                                        </div>
+                                        <span v-else>{{ formatCurrency(item.quantity * item.price) }}</span>
                                     </td>
                                     <td v-if="!isPreview" class="py-3 text-center print:hidden align-top">
                                         <button v-if="items.length > 1" @click="removeItem(item.id)" class="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
@@ -417,17 +504,21 @@ onMounted(fetchClients)
 
                         <!-- Totals -->
                         <div class="w-full md:w-1/3 space-y-3">
-                            <div class="flex justify-between text-sm text-gray-600">
+                            <div v-if="companyDetails.vatEnabled" class="flex justify-between text-sm text-gray-600">
                                 <span>Sous-total HT</span>
                                 <span class="font-mono font-medium">{{ formatCurrency(subtotal) }}</span>
                             </div>
-                            <div class="flex justify-between text-sm text-gray-600">
-                                <span>TVA (20%)</span>
-                                <span class="font-mono font-medium">{{ formatCurrency(taxAmount) }}</span>
+                            <div class="flex justify-between text-sm text-gray-600 items-center">
+                                <div class="flex items-center gap-2">
+                                     <input v-if="!isPreview" type="checkbox" v-model="companyDetails.vatEnabled" id="vat-toggle" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3 h-3" />
+                                     <label v-if="!isPreview" for="vat-toggle" class="cursor-pointer select-none">TVA (20%)</label>
+                                     <span v-else-if="companyDetails.vatEnabled">TVA (20%)</span>
+                                </div>
+                                <span v-if="companyDetails.vatEnabled" class="font-mono font-medium">{{ formatCurrency(taxAmount) }}</span>
                             </div>
                             <div class="h-px bg-gray-200 my-2"></div>
                             <div class="flex justify-between items-center">
-                                <span class="text-base font-bold text-gray-900">Total TTC</span>
+                                <span class="text-base font-bold text-gray-900">Total {{ companyDetails.vatEnabled ? 'TTC' : '' }}</span>
                                 <span class="text-xl font-bold font-mono tracking-tight" :style="{ color: companyDetails.accentColor }">{{ formatCurrency(total) }}</span>
                             </div>
                         </div>

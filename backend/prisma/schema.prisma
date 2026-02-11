@@ -14,6 +14,13 @@ model Client {
   firstName String
   lastName  String
   company   String?
+  address   String?
+  city      String?
+  zipCode   String?
+  phone     String?
+  siret     String?
+  tvaNumber String?
+  
   status    String   @default("En attente")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
