@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import axios from 'axios'
-import { Plus, Trash2, Save, Loader, Settings, Image as ImageIcon, Search, Download, Eye, Edit3 } from 'lucide-vue-next'
+import { Plus, Trash2, Save, Loader, Settings, Image as ImageIcon, Search, Download, Eye, Edit3, Mail } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -212,6 +212,60 @@ const downloadPDF = async () => {
     }
 }
 
+const sendEmail = async () => {
+    if (!clientEmail.value) {
+        alert("Veuillez renseigner l'email du client.")
+        return
+    }
+
+    if (!confirm(`Préparer l'email pour ${clientEmail.value} ?\n\nLa facture sera téléchargée et vous devrez l'ajouter en pièce jointe à l'email qui s'ouvrira.`)) return
+
+    isGeneratingPdf.value = true
+    const wasInPreview = isPreview.value
+    isPreview.value = true // Force preview mode for clean capture
+    
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    const element = document.getElementById('invoice-preview')
+    if (!element) {
+        isGeneratingPdf.value = false
+        return
+    }
+
+    try {
+        const canvas = await html2canvas(element, {
+            scale: 3,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+        })
+        
+        const imgData = canvas.toDataURL('image/jpeg', 1.0)
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight)
+        // Download the PDF so user can attach it
+        pdf.save(`Facture-${invoiceNumber.value}.pdf`)
+
+        // Open Mail Client
+        const subject = encodeURIComponent(`Facture ${invoiceNumber.value} - ${companyDetails.value.name}`)
+        const bodyText = `Bonjour ${clientName.value || ''},\n\nVeuillez trouver ci-joint la facture ${invoiceNumber.value}.\n\nCordialement,\n\n${companyDetails.value.name}`
+        const body = encodeURIComponent(bodyText)
+
+        window.location.href = `mailto:${clientEmail.value}?subject=${subject}&body=${body}`
+        
+    } catch (error: any) {
+        console.error('PDF Generation failed', error)
+        alert("Erreur lors de la génération: " + error.message)
+    } finally {
+        isGeneratingPdf.value = false
+        if (!wasInPreview) isPreview.value = false
+    }
+}
+
 const saveInvoice = async () => {
     if (!clientName.value && !clientBrand.value) {
         alert("Veuillez indiquer un client (Nom ou Entreprise).")
@@ -317,6 +371,10 @@ onMounted(fetchClients)
                 <Button @click="downloadPDF" :disabled="isGeneratingPdf" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
                     <Loader v-if="isGeneratingPdf" class="animate-spin mr-2" :size="16" />
                     <Download v-else :size="16" class="mr-2" /> Télécharger PDF
+                </Button>
+                <Button @click="sendEmail" :disabled="isGeneratingPdf" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
+                    <Loader v-if="isGeneratingPdf" class="animate-spin mr-2" :size="16" />
+                    <Mail v-else :size="16" class="mr-2" /> Envoyer Email
                 </Button>
             </div>
         </div>

@@ -1,6 +1,9 @@
 import express from 'express';
 import prisma from '../db.js';
+import nodemailer from 'nodemailer';
+import multer from 'multer';
 
+const upload = multer();
 const router = express.Router();
 
 // 1. GET ALL SALES (with pagination and filtering by date later)
@@ -84,6 +87,46 @@ router.delete('/:id', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error deleting sale' });
+    }
+});
+
+// 5. SEND INVOICE BY EMAIL
+router.post('/send-invoice', upload.single('invoicePdf'), async (req, res) => {
+    const { email, subject, body } = req.body;
+    const file = req.file;
+
+    if (!email || !file) {
+        return res.status(400).json({ error: 'Email and PDF file are required' });
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            }
+        });
+
+        const mailOptions = {
+            from: process.env.SMTP_USER,
+            to: email,
+            subject: subject,
+            text: body,
+            attachments: [
+                {
+                    filename: file.originalname,
+                    content: file.buffer,
+                    contentType: 'application/pdf'
+                }
+            ]
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true, message: 'Email envoyé avec succès !' });
+    } catch (error) {
+        console.error("Email error:", error);
+        res.status(500).json({ error: 'Erreur envoi email (Vérifiez les identifiants SMTP): ' + error.message });
     }
 });
 
