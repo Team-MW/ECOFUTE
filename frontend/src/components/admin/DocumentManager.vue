@@ -15,17 +15,22 @@ interface Document {
     createdAt: string;
     status: string;
     clientId: number;
-    category?: string; // Add category to interface if not present in parent
+    category?: string;
+}
+
+interface Folder {
+    name: string;
 }
 
 const props = defineProps<{
     documents: Document[],
-    clientId: number // ID for uploads
+    folders?: Folder[], // Array from backend
+    clientId: number
 }>()
 
 const emit = defineEmits<{
     (e: 'delete', id: number, name: string): void
-    (e: 'refresh'): void // Emit refresh to reload docs after upload
+    (e: 'refresh'): void
 }>()
 
 const view = ref<'folders' | 'files'>('folders')
@@ -35,26 +40,14 @@ const showCreateFolderDialog = ref(false)
 const newFolderName = ref('')
 const isUploading = ref(false)
 
-// Custom folders (persisted locally for now or derived?)
-// Ideally, folders are just unique categories. "Creating" a folder just adds it to the list until a file is added?
-// Or we can just have a list of 'known' folders including empty ones if we store them in state.
-// For simplicity, we'll store 'active' empty folders in a ref until refresh.
-const customFolders = ref<string[]>([])
-
 const groupedDocs = computed(() => {
     const groups: Record<string, Document[]> = {}
     
     props.documents.forEach(doc => {
-        // Parse category from name [Category] Name OR use doc.category if available (from drive update)
-        // The regex fallback is for old docs. New docs might have category field if backend sends it.
-        // Let's rely on the regex for now as backend returns 'name' as '[Category] Name'.
-        // Wait, the backend returns 'category' field now in 'InternalDrive' but maybe not here?
-        // Let's assume standard '[Category] Name' format still holds or check doc.category.
-        
         let category = 'Autre'
         let cleanName = doc.name
 
-        // Check for category field first (if added to query)
+        // Check for category field first
         if (doc.category && doc.category !== 'Autre') {
             category = doc.category
         } else {
@@ -71,10 +64,10 @@ const groupedDocs = computed(() => {
         groups[category]?.push({ ...doc, name: cleanName })
     })
 
-    // Add empty custom folders
-    customFolders.value.forEach(folder => {
-        if (!groups[folder]) {
-            groups[folder] = []
+    // Add empty persistent folders
+    props.folders?.forEach(f => {
+        if (!groups[f.name]) {
+            groups[f.name] = []
         }
     })
 
@@ -134,10 +127,8 @@ async function handleFiles(files: FileList) {
             const file = files[i]
             if (file) {
                  const formData = new FormData()
-                 // Append metadata first
                  formData.append('clientId', props.clientId.toString())
                  formData.append('category', targetCategory)
-                 // Then file
                  formData.append('file', file)
                  
                  await axios.post('/api/documents', formData, {
@@ -146,7 +137,6 @@ async function handleFiles(files: FileList) {
             }
         }
         
-        // Refresh docs
         emit('refresh')
         
     } catch (error: any) {
@@ -157,13 +147,23 @@ async function handleFiles(files: FileList) {
     }
 }
 
-function createFolder() {
+async function createFolder() {
     if (newFolderName.value) {
-        if (!folders.value.includes(newFolderName.value)) {
-            customFolders.value.push(newFolderName.value)
+        if (folders.value.includes(newFolderName.value)) {
+            newFolderName.value = ''
+            showCreateFolderDialog.value = false
+            return
         }
-        newFolderName.value = ''
-        showCreateFolderDialog.value = false
+
+        try {
+            await axios.post(`/api/clients/${props.clientId}/folders`, { name: newFolderName.value })
+            emit('refresh')
+            newFolderName.value = ''
+            showCreateFolderDialog.value = false
+        } catch (e: any) {
+            console.error(e)
+            alert("Erreur création dossier: " + (e.response?.data?.error || e.message))
+        }
     }
 }
 

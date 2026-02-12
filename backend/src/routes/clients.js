@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
     try {
         const clients = await prisma.client.findMany({
             orderBy: { createdAt: 'desc' },
-            include: { documents: true }
+            include: { documents: true, folders: true }
         });
         res.json(clients);
     } catch (error) {
@@ -60,7 +60,7 @@ router.get('/:id', async (req, res) => {
     try {
         const client = await prisma.client.findUnique({
             where: { id: parseInt(id) },
-            include: { documents: true }
+            include: { documents: true, folders: true }
         });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         res.json(client);
@@ -115,6 +115,30 @@ router.delete('/:id', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error deleting client' });
+    }
+});
+
+// 5. CREATE FOLDER
+router.post('/:id/folders', async (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name) return res.status(400).json({ error: 'Folder name is required' });
+
+    try {
+        const folder = await prisma.folder.create({
+            data: {
+                name,
+                clientId: parseInt(id)
+            }
+        });
+        res.json(folder);
+    } catch (error) {
+        if (error.code === 'P2002') { // Unique constraint violation
+            return res.status(400).json({ error: 'Folder already exists' });
+        }
+        console.error("Create folder error:", error);
+        res.status(500).json({ error: 'Error creating folder' });
     }
 });
 

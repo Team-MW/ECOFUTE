@@ -26,6 +26,17 @@ model Client {
   updatedAt DateTime @updatedAt
 
   documents Document[]
+  folders   Folder[]
+}
+
+model Folder {
+  id        Int      @id @default(autoincrement())
+  name      String
+  clientId  Int
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, name])
 }
 
 model Document {

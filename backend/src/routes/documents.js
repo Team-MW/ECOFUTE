@@ -67,11 +67,13 @@ router.post('/', upload.single('file'), async (req, res) => {
         // Cloudinary Upload Stream
         const uploadFromBuffer = (buffer) => {
             return new Promise((resolve, reject) => {
+                const isImage = file.mimetype.startsWith('image/');
                 const cld_upload_stream = cloudinary.uploader.upload_stream(
                     {
                         folder: "ecofute_documents",
-                        resource_type: "auto",
-                        access_mode: "public"
+                        resource_type: isImage ? "image" : "raw",
+                        access_mode: "public",
+                        type: "upload"
                     },
                     (error, result) => {
                         if (result) resolve(result);
@@ -102,7 +104,8 @@ router.post('/', upload.single('file'), async (req, res) => {
         res.json(doc);
     } catch (error) {
         console.error("Upload Error:", error);
-        res.status(500).json({ error: "Error uploading document: " + error.message });
+        const errorMessage = error.message || (typeof error === 'string' ? error : JSON.stringify(error));
+        res.status(500).json({ error: "Error uploading document: " + errorMessage });
     }
 });
 

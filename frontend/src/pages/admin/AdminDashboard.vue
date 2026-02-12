@@ -48,6 +48,7 @@ interface Client {
     status: string;
     createdAt: string;
     documents: Document[];
+    folders?: { id: number; name: string }[];
 }
 
 // --- State ---
@@ -120,6 +121,14 @@ const fetchUsers = async () => {
     try {
         const res = await axios.get('/api/clients')
         users.value = res.data
+        
+        // Update selectedUser with fresh data to ensure view is updated
+        if (selectedUser.value) {
+            const freshUser = users.value.find(u => u.id === selectedUser.value?.id)
+            if (freshUser) {
+                selectedUser.value = freshUser
+            }
+        }
     } catch (err) {
         console.warn('Failed to fetch clients', err)
     }
@@ -492,6 +501,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                             <div class="bg-white border border-zinc-200 min-h-[400px]">
                                 <DocumentManager 
                                     :documents="selectedUser.documents" 
+                                    :folders="selectedUser.folders"
                                     :clientId="selectedUser.id"
                                     @delete="handleDeleteDocument" 
                                     @refresh="fetchUsers"
