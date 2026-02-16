@@ -52,7 +52,7 @@ onMounted(() => {
 const fetchEvents = async () => {
     try {
         isLoading.value = true
-        const res = await axios.get('/api/events')
+        const res = await axios.get('/api/events?type=general')
         // Transform date strings to Date objects for frontend logic
         events.value = res.data.map((e: any) => ({
             ...e,
@@ -78,7 +78,8 @@ const saveEvent = async () => {
                 date: eventDate,
                 time: formData.time,
                 description: formData.description,
-                color: formData.color
+                color: formData.color,
+                type: 'general'
             }
             const res = await axios.put(`/api/events/${editingEvent.value.id}`, payload)
             
@@ -97,7 +98,8 @@ const saveEvent = async () => {
                 date: eventDate,
                 time: formData.time,
                 description: formData.description,
-                color: formData.color || '#3b82f6'
+                color: formData.color || '#3b82f6',
+                type: 'general'
             }
             const res = await axios.post('/api/events', payload)
             events.value.push({

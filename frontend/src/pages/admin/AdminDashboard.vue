@@ -20,6 +20,7 @@ import InternalDrive from '@/components/admin/InternalDrive.vue'
 import InvoiceCreator from '@/components/admin/InvoiceCreator.vue'
 import TeamManager from '@/components/admin/TeamManager.vue'
 import DashboardStats from '@/components/admin/DashboardStats.vue'
+import Planning from '@/components/admin/Planning.vue'
 
 // --- Interfaces ---
 interface Document {
@@ -79,7 +80,7 @@ const editForm = ref({
     tvaNumber: ''
 })
 
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning'>('clients')
 const searchTerm = ref('')
 const showCreateForm = ref(false)
 const showEditForm = ref(false)
@@ -354,6 +355,13 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     Calendrier
                 </button>
                 <button
+                    @click="activeView = 'planning'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'planning' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <Clock :size="18" />
+                    Planning Équipe
+                </button>
+                <button
                     @click="activeView = 'sales'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'sales' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
                 >
@@ -415,7 +423,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         </div>
                     </button>
                     <div class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
-                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : 'Tableau de bord / Clients' }}
+                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 md:gap-4">
@@ -546,6 +554,11 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <!-- Team View -->
                 <div v-else-if="activeView === 'team'" class="h-full overflow-y-auto">
                     <TeamManager />
+                </div>
+
+                <!-- Planning View -->
+                <div v-else-if="activeView === 'planning'" class="h-full">
+                    <Planning />
                 </div>
 
                 <!-- Clients List View -->

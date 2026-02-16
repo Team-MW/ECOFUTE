@@ -65,6 +65,8 @@ model Event {
   date        DateTime
   time        String?
   color       String   @default("#3b82f6")
+  assignedTo  String?
+  type        String   @default("general")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

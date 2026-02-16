@@ -28,6 +28,20 @@ app.get('/api/ping', (req, res) => {
     res.json({ status: 'ok', message: 'EcoFute Backend is running', time: new Date() });
 });
 
+// Serve static frontend files in production
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
+    app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+    });
+}
+
 // Start Server
 // Start Server for Local/VPS (Not Vercel)
 if (process.env.VERCEL !== '1') {
