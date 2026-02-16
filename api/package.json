@@ -8,8 +8,7 @@
         "start": "node src/index.js",
         "dev": "nodemon src/index.js",
         "postinstall": "prisma generate",
-        "vercel-build": "cd ../frontend && npm install && npm run build",
-        "build": "echo 'Building frontend for backend deployment' && npm run vercel-build"
+        "build": "echo 'No build for backend'"
     },
     "dependencies": {
         "@clerk/clerk-sdk-node": "^5.0.0",
