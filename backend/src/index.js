@@ -12,8 +12,24 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// Middleware CORS — autorise le frontend local et Vercel en production
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    process.env.FRONTEND_URL, // ex: https://ecofute-frontend.vercel.app
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Autoriser les requêtes sans origin (Postman, curl, etc.)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Autoriser tous les sous-domaines *.vercel.app en preview
+        if (origin.endsWith('.vercel.app')) return callback(null, true);
+        callback(new Error(`CORS bloqué pour l'origine : ${origin}`));
+    },
+    credentials: true,
+}));
 app.use(express.json());
 
 // Routes
