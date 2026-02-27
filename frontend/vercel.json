@@ -2,7 +2,7 @@
     "rewrites": [
         {
             "source": "/api/:path*",
-            "destination": "https://ecofute-backend.vercel.app/api/:path*"
+            "destination": "https://ecofute.vercel.app/api/:path*"
         },
         {
             "source": "/(.*)",
