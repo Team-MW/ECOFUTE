@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import * as XLSX from 'xlsx'
+import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 
 interface Sale {
     id: number
@@ -297,7 +298,13 @@ const salesCount = computed(() => filteredSales.value.length)
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-100">
-                        <tr v-if="filteredSales.length === 0">
+                        <!-- Skeleton loading -->
+                        <tr v-if="isLoading && sales.length === 0">
+                            <td colspan="5" class="p-0">
+                                <SkeletonLoader type="table" :rows="5" />
+                            </td>
+                        </tr>
+                        <tr v-else-if="filteredSales.length === 0">
                             <td colspan="5" class="px-6 py-12 text-center text-zinc-400 text-sm">
                                 <div class="flex flex-col items-center justify-center gap-2">
                                     <div class="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center mb-1">

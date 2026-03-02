@@ -21,6 +21,7 @@ import InvoiceCreator from '@/components/admin/InvoiceCreator.vue'
 import TeamManager from '@/components/admin/TeamManager.vue'
 import DashboardStats from '@/components/admin/DashboardStats.vue'
 import Planning from '@/components/admin/Planning.vue'
+import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 
 // --- Interfaces ---
 interface Document {
@@ -90,6 +91,7 @@ const isMobileMenuOpen = ref(false)
 const isPinVerified = ref(false) 
 const pinCode = ref('')
 const error = ref('')
+const isLoadingClients = ref(false)
 
 // --- Computed ---
 const filteredUsers = computed(() => {
@@ -119,6 +121,7 @@ const handlePinSubmit = () => {
 }
 
 const fetchUsers = async () => {
+    isLoadingClients.value = true
     try {
         const res = await axios.get('/api/clients')
         users.value = res.data
@@ -132,6 +135,8 @@ const fetchUsers = async () => {
         }
     } catch (err) {
         console.warn('Failed to fetch clients', err)
+    } finally {
+        isLoadingClients.value = false
     }
 }
 
@@ -594,9 +599,16 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-zinc-100">
-                                    <tr 
-                                        v-for="u in filteredUsers" 
-                                        :key="u.id" 
+                                    <!-- Skeleton loading -->
+                                <tr v-if="isLoadingClients">
+                                    <td colspan="4" class="p-0">
+                                        <SkeletonLoader type="table" :rows="5" />
+                                    </td>
+                                </tr>
+                                <tr 
+                                    v-else
+                                    v-for="u in filteredUsers" 
+                                    :key="u.id" 
                                         @click="selectedUser = u"
                                         class="hover:bg-zinc-50 transition-colors cursor-pointer group"
                                     >

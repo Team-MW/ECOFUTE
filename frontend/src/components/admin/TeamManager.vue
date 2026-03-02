@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 
 interface TeamMember {
     id: string
@@ -104,8 +105,8 @@ onMounted(fetchMembers)
 
         <!-- Content -->
         <div class="p-8">
-            <div v-if="isLoading" class="flex justify-center p-12">
-                <Loader class="animate-spin text-zinc-400" />
+            <div v-if="isLoading" class="p-8">
+                <SkeletonLoader type="cards" :rows="3" />
             </div>
 
             <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
