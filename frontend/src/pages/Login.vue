@@ -16,8 +16,7 @@ import { CheckCircle2 } from 'lucide-vue-next'
         <!-- Content -->
         <div class="relative z-10">
             <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 bg-white text-zinc-900 flex items-center justify-center font-bold text-xl rounded-sm">E</div>
-                <span class="text-2xl font-bold tracking-tighter">EcoFuté.</span>
+                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-12 invert" />
             </div>
             <p class="text-zinc-400 text-sm max-w-sm">Solution de gestion complète pour votre entreprise.</p>
         </div>
@@ -50,8 +49,7 @@ import { CheckCircle2 } from 'lucide-vue-next'
         
         <div class="mt-8 text-center lg:hidden">
              <div class="flex items-center justify-center gap-2 mb-2">
-                <div class="w-6 h-6 bg-black text-white flex items-center justify-center font-bold text-xs rounded-sm">E</div>
-                <span class="font-bold tracking-tighter">EcoFuté.</span>
+                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-8" />
             </div>
             <p class="text-xs text-zinc-500">Gérez votre activité en toute sérénité.</p>
         </div>

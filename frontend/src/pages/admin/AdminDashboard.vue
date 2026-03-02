@@ -5,7 +5,7 @@ import { useAuth, UserButton, useUser } from '@clerk/vue'
 import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
-    Trash2, Lock, ArrowLeft, Calendar, FilePlus, ShieldCheck,
+    Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
     TrendingUp, BarChart3, Edit3
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -290,10 +290,10 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
         </div>
 
         <div class="bg-white border border-zinc-200 p-8 max-w-md w-full text-center relative z-10 shadow-2xl shadow-black/5 rounded-none">
-            <div class="w-16 h-16 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
-                <Lock class="text-white" :size="32" />
+            <div class="flex items-center justify-center mx-auto mb-6">
+                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-20" />
             </div>
-            <h2 class="text-2xl font-bold text-black tracking-tight mb-2">EcoFuté Admin</h2>
+            <h2 class="text-xl font-bold text-black tracking-tight mb-2">Espace Admin</h2>
             <p class="text-zinc-500 mb-8 text-sm">Veuillez entrer le code de sécurité pour accéder.</p>
 
             <form @submit.prevent="handlePinSubmit" class="space-y-6">
@@ -332,7 +332,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `">
             <div class="h-16 flex items-center justify-between px-6 border-b border-zinc-800">
-                <span class="text-lg font-bold tracking-tighter">EcoFuté.</span>
+                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-8 invert" />
                 <button class="md:hidden text-zinc-400 hover:text-white" @click="isMobileMenuOpen = false">
                     <X :size="20" />
                 </button>

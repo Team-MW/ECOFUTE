@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useUser } from '@clerk/vue'
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Filter, Copy, RefreshCw, Briefcase, MoreVertical } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Filter, Copy, RefreshCw, MoreVertical } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -209,7 +209,6 @@ const duplicatePreviousWeek = async () => {
 
         const newEventsPayload = eventsToCopy.map(e => {
             const oldDate = new Date(e.date)
-            const dayDiff = oldDate.getDay() - 1 // 0 for Mon, etc (if week starts mon)
             // Just add 7 days to date
             const newDate = addDays(oldDate, 7)
             
@@ -402,72 +401,48 @@ const openEditEventDialog = (event: CalendarEvent) => {
             </div>
         </div>
 
-        <!-- Weekly Grid -->
-        <div class="flex-1 overflow-auto bg-zinc-50/50">
-            <div class="min-w-[1000px] bg-white border-b border-zinc-200 shadow-sm">
-                <!-- Grid Header -->
-                <div class="grid grid-cols-[200px_1fr] divide-x divide-zinc-100">
-                    <div class="p-4 flex items-center bg-zinc-50/50">
-                        <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Employés</span>
-                    </div>
-                    <div class="grid grid-cols-7 divide-x divide-zinc-100">
-                        <div v-for="day in weekDays" :key="day.toString()" :class="`p-3 text-center border-b-2 ${format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'border-black bg-zinc-50' : 'border-transparent'}`">
-                            <p class="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">{{ format(day, 'EEE', { locale: fr }) }}</p>
-                            <p :class="`text-sm font-bold ${format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'text-black' : 'text-zinc-600'}`">{{ format(day, 'd') }}</p>
-                        </div>
-                    </div>
+        <!-- Simplified Daily/Weekly View -->
+        <div class="flex-1 overflow-auto bg-zinc-50/50 p-6">
+            <!-- Iterate over days in the current week -->
+            <div v-for="day in weekDays" :key="day.toString()" class="mb-8 last:mb-0">
+                <div class="flex items-center justify-between mb-4 border-b border-zinc-200 pb-2">
+                    <h3 class="text-lg font-bold text-zinc-900 flex items-center gap-2">
+                        <span class="capitalize">{{ format(day, 'EEEE', { locale: fr }) }}</span>
+                        <span class="text-zinc-500 font-normal">{{ format(day, 'd MMMM', { locale: fr }) }}</span>
+                    </h3>
+                    <Button @click="openNewEventDialog(null, day)" variant="outline" size="sm" class="h-8 text-xs">
+                        <Plus :size="12" class="mr-1" /> Ajouter
+                    </Button>
                 </div>
-            </div>
-
-            <!-- Grid Rows -->
-            <div class="divide-y divide-zinc-100 bg-white min-w-[1000px]">
-                <div v-for="row in displayedRows" :key="row.id || 'unassigned'" class="grid grid-cols-[200px_1fr] divide-x divide-zinc-100 hover:bg-zinc-50/30 transition-colors group">
-                    <!-- User Column -->
-                    <div class="p-4 flex items-center gap-3">
-                         <div v-if="row.id" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" :style="{ backgroundColor: row.color + '20', color: row.color }">
-                            {{ row.name.charAt(0) }}
-                        </div>
-                        <div v-else class="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 shrink-0">
-                            <Briefcase :size="14" />
-                        </div>
-                        <div class="min-w-0">
-                            <p class="text-sm font-bold text-zinc-900 truncate leading-none">{{ row.name }}</p>
-                            <p class="text-[10px] text-zinc-400 uppercase tracking-wider mt-1 font-medium truncate" v-if="row.id">35h / Sem</p>
-                        </div>
-                    </div>
-
-                    <!-- Days Columns -->
-                    <div class="grid grid-cols-7 divide-x divide-zinc-100">
-                        <div 
-                            v-for="day in weekDays" 
-                            :key="day.toString()" 
-                            class="min-h-[100px] p-2 relative group/cell hover:bg-zinc-50 transition-colors cursor-pointer"
-                            @click.self="openNewEventDialog(row.id, day)"
-                        >
-                            <!-- Plus button on hover -->
-                            <button 
-                                @click.stop="openNewEventDialog(row.id, day)"
-                                class="absolute top-2 right-2 opacity-0 group-hover/cell:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-sm hover:bg-zinc-200 text-zinc-500"
-                            >
-                                <Plus :size="12" />
-                            </button>
-
-                            <!-- Events List -->
-                            <div class="space-y-1.5 pointer-events-none"> <!-- Use pointer-events-none to let clicks pass to parent, enable for children -->
-                                <div 
-                                    v-for="event in getEventsForCell(row.id, day)" 
-                                    :key="event.id"
-                                    class="bg-white border rounded-sm p-2 shadow-sm pointer-events-auto hover:shadow-md transition-all hover:scale-[1.02] border-l-4"
-                                    :style="{ borderLeftColor: event.color }"
-                                    @click.stop="openEditEventDialog(event)"
-                                >
-                                    <p class="font-bold text-xs text-zinc-900 leading-tight mb-0.5 truncate">{{ event.title }}</p>
-                                    <div class="flex items-center gap-1 text-[10px] text-zinc-500 font-mono">
-                                        <Clock :size="10" /> {{ event.time }}
-                                    </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Flatten events for this day -->
+                    <template v-for="row in displayedRows" :key="row.id || 'unassigned'">
+                        <div v-for="event in getEventsForCell(row.id, day)" :key="event.id"
+                             class="bg-white border border-zinc-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 group"
+                             :style="{ borderLeftColor: event.color }"
+                             @click="openEditEventDialog(event)">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-bold text-sm text-zinc-900">{{ event.title }}</h4>
+                                    <p class="text-xs text-zinc-500 font-medium flex items-center gap-1 mt-1">
+                                        <Clock :size="12" /> {{ event.time }}
+                                    </p>
+                                </div>
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                                     :title="row.name"
+                                     :style="{ backgroundColor: row.color ? row.color + '20' : '#f4f4f5', color: row.color || '#a1a1aa' }">
+                                    {{ row.id ? row.name.charAt(0) : '?' }}
                                 </div>
                             </div>
+                            <p v-if="event.description" class="text-xs text-zinc-600 mt-2 line-clamp-2">{{ event.description }}</p>
                         </div>
+                    </template>
+                    
+                    <!-- Show empty state if no events for the day -->
+                    <div v-if="displayedRows.flatMap(r => getEventsForCell(r.id, day)).length === 0" 
+                         class="col-span-full py-8 text-center text-zinc-400 text-sm border-2 border-dashed border-zinc-200 rounded-lg bg-zinc-50/50">
+                        Aucun shift prévu pour ce jour.
                     </div>
                 </div>
             </div>
