@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import axios from 'axios'
-import { Folder, ArrowLeft, FileText, ExternalLink, Trash2, UploadCloud, FolderPlus } from 'lucide-vue-next'
+import { Folder, ArrowLeft, FileText, Trash2, UploadCloud, FolderPlus, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -179,6 +179,24 @@ function onFileSelect(e: Event) {
     }
 }
 
+// Télécharger le fichier sur l'ordinateur
+async function downloadFile(url: string, name: string) {
+    try {
+        const response = await fetch(url)
+        const blob = await response.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = blobUrl
+        link.download = name
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+    } catch (e) {
+        window.open(url, '_blank')
+    }
+}
+
 </script>
 
 <template>
@@ -279,14 +297,12 @@ function onFileSelect(e: Event) {
                             <td class="px-6 py-4 text-zinc-500 tabular-nums font-mono text-xs">{{ formatDate(doc.createdAt) }}</td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
-                                    <a
-                                        :href="doc.url"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="inline-flex items-center gap-1 text-zinc-600 hover:text-black border border-zinc-200 hover:border-black bg-white px-3 py-1.5 rounded-sm transition-all text-xs font-medium"
+                                    <button
+                                        @click.stop="downloadFile(doc.url, doc.name)"
+                                        class="inline-flex items-center gap-1.5 text-zinc-600 hover:text-black border border-zinc-200 hover:border-black bg-white px-3 py-1.5 rounded-sm transition-all text-xs font-medium hover:bg-zinc-50"
                                     >
-                                        Voir <ExternalLink :size="10" />
-                                    </a>
+                                        <Download :size="12" /> Télécharger
+                                    </button>
                                     <button
                                         @click.stop="emit('delete', doc.id, `[${currentFolder}] ${doc.name}`)"
                                         class="inline-flex items-center gap-1 text-zinc-400 hover:text-red-600 border border-transparent hover:border-red-200 hover:bg-red-50 px-2 py-1.5 rounded-sm transition-all text-xs"
