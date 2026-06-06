@@ -64,17 +64,25 @@ router.post('/', upload.single('file'), async (req, res) => {
 
         if (!file) return res.status(400).json({ error: "No file provided" });
 
+        const isImage = file.mimetype.startsWith('image/');
+        const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+
         // Cloudinary Upload Stream
         const uploadFromBuffer = (buffer) => {
             return new Promise((resolve, reject) => {
-                const isImage = file.mimetype.startsWith('image/');
+                const options = {
+                    folder: "ecofute_documents",
+                    resource_type: (isImage || isPdf) ? "image" : "raw",
+                    access_mode: "public",
+                    type: "upload"
+                };
+
+                if (isPdf) {
+                    options.format = "png";
+                }
+
                 const cld_upload_stream = cloudinary.uploader.upload_stream(
-                    {
-                        folder: "ecofute_documents",
-                        resource_type: isImage ? "image" : "raw",
-                        access_mode: "public",
-                        type: "upload"
-                    },
+                    options,
                     (error, result) => {
                         if (result) resolve(result);
                         else reject(error);
@@ -87,12 +95,19 @@ router.post('/', upload.single('file'), async (req, res) => {
         const result = await uploadFromBuffer(file.buffer);
 
         // Determine final name
-        const finalName = name || file.originalname;
+        let finalName = name || file.originalname;
+        if (isPdf) {
+            // Replace .pdf with .png in the file name
+            finalName = finalName.replace(/\.pdf$/i, '.png');
+            if (!finalName.toLowerCase().endsWith('.png')) {
+                finalName += '.png';
+            }
+        }
 
         const doc = await prisma.document.create({
             data: {
                 name: finalName,
-                type: result.format || file.mimetype,
+                type: isPdf ? 'image/png' : (result.format || file.mimetype),
                 size: (result.bytes / 1024 / 1024).toFixed(2) + ' MB',
                 url: result.secure_url,
                 clientId: (clientId && !isNaN(parseInt(clientId))) ? parseInt(clientId) : null,

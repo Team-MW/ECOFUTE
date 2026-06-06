@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { showToast, showConfirm } from '@/lib/feedback'
 
 interface Document {
     id: number
@@ -88,7 +89,7 @@ const handleFileUpload = async () => {
         selectedFile.value = null
         uploadForm.value = { name: '', category: 'Général', folder: '', clientId: '' }
     } catch (err) {
-        alert("Erreur lors de l'upload")
+        showToast("Erreur lors de l'upload", "error")
     }
 }
 
@@ -106,12 +107,20 @@ const archiveDocument = async (doc: Document) => {
 }
 
 const deleteDocument = async (id: number) => {
-    if (!confirm("Supprimer définitivement ce document ?")) return
+    const isConfirmed = await showConfirm({
+        title: 'Supprimer le document',
+        message: 'Supprimer définitivement ce document ?',
+        type: 'danger',
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
     try {
         await axios.delete(`/api/documents/${id}`)
         documents.value = documents.value.filter(d => d.id !== id)
+        showToast("Document supprimé avec succès !", "success")
     } catch (err) {
-        alert("Erreur suppression")
+        showToast("Erreur suppression", "error")
     }
 }
 
@@ -389,32 +398,32 @@ const formatDate = (date: string) => new Date(date).toLocaleDateString('fr-FR')
 
         <!-- Upload Dialog -->
         <Dialog v-model:open="showUploadDialog">
-            <DialogContent class="sm:max-w-md rounded-sm">
+            <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200">
                 <DialogHeader>
-                    <DialogTitle>Importer un message</DialogTitle>
-                    <DialogDescription>Ajoutez un fichier à votre drive interne.</DialogDescription>
+                    <DialogTitle class="text-xl font-bold tracking-tight text-zinc-900">Importer un fichier</DialogTitle>
+                    <DialogDescription class="text-xs text-zinc-500 mt-1">Ajoutez un fichier à votre drive interne.</DialogDescription>
                 </DialogHeader>
                 <div class="grid gap-4 py-4">
                     <div class="grid gap-2">
-                         <label class="text-sm font-medium">Fichier</label>
-                         <Input type="file" @change="onFileSelect" />
+                         <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Fichier</label>
+                         <Input type="file" @change="onFileSelect" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                     </div>
                     <div class="grid gap-2">
-                        <label class="text-sm font-medium">Nom (Optionnel)</label>
-                        <Input v-model="uploadForm.name" placeholder="Nom du fichier..." />
+                        <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nom (Optionnel)</label>
+                        <Input v-model="uploadForm.name" placeholder="Nom du fichier..." class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                          <div class="grid gap-2">
-                             <label class="text-sm font-medium">Dossier</label>
-                             <Input v-model="uploadForm.folder" placeholder="Ex: Projets 2024" list="folders" />
+                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Dossier</label>
+                             <Input v-model="uploadForm.folder" placeholder="Ex: Projets 2024" list="folders" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                              <!-- Datalist for existing folders -->
                              <datalist id="folders">
                                 <option v-for="f in uniqueFolders" :key="f" :value="f"></option>
                              </datalist>
                          </div>
                          <div class="grid gap-2">
-                             <label class="text-sm font-medium">Catégorie</label>
-                             <select v-model="uploadForm.category" class="h-10 w-full px-3 rounded-md border border-input bg-background">
+                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Catégorie</label>
+                             <select v-model="uploadForm.category" class="h-10 w-full px-3 border border-zinc-300 rounded-xl shadow-sm focus:border-zinc-950 outline-none bg-white text-sm font-medium">
                                  <option value="Général">Général</option>
                                  <option value="Facture">Facture</option>
                                  <option value="Devis">Devis</option>
@@ -425,9 +434,9 @@ const formatDate = (date: string) => new Date(date).toLocaleDateString('fr-FR')
                          </div>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" @click="showUploadDialog = false">Annuler</Button>
-                    <Button @click="handleFileUpload" class="bg-black text-white" :disabled="!selectedFile">Uploader</Button>
+                <DialogFooter class="flex gap-2 justify-end mt-4">
+                    <Button variant="outline" @click="showUploadDialog = false" class="rounded-xl border-zinc-200/80">Annuler</Button>
+                    <Button @click="handleFileUpload" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]" :disabled="!selectedFile">Uploader</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

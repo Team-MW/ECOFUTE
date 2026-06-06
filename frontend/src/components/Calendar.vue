@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useUser } from '@clerk/vue'
-import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, Calendar as CalendarIcon, Clock, AlignLeft } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, Calendar as CalendarIcon, Clock, AlignLeft, Filter, User } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import axios from 'axios'
+import { showToast, showConfirm } from '@/lib/feedback'
 
 interface CalendarEvent {
     id: number
@@ -14,6 +15,15 @@ interface CalendarEvent {
     color: string
     description?: string
     time?: string
+    assignedTo?: string | null
+}
+
+interface TeamMember {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    color: string
 }
 
 // State
@@ -21,6 +31,8 @@ const { user } = useUser()
 const currentDate = ref(new Date())
 const selectedDate = ref<Date | null>(new Date()) // Default to today
 const events = ref<CalendarEvent[]>([])
+const teamMembers = ref<TeamMember[]>([])
+const filterEmployeeId = ref<string>('all')
 const showEventDialog = ref(false)
 const showCustomizeDialog = ref(false)
 const editingEvent = ref<CalendarEvent | null>(null)
@@ -31,7 +43,8 @@ const eventForm = ref({
     date: '',
     time: '',
     description: '',
-    color: '#3b82f6'
+    color: '#3b82f6',
+    assignedTo: '' as string | null
 })
 
 // Customization options
@@ -45,10 +58,19 @@ const calendarTheme = ref({
 // Lifecycle
 onMounted(() => {
     fetchEvents()
-    // Load local customization if any (optional, skipping for now to keep it simple or adds complexity)
+    fetchTeamMembers()
 })
 
 // API Interactions
+const fetchTeamMembers = async () => {
+    try {
+        const res = await axios.get('/api/users')
+        teamMembers.value = res.data
+    } catch (err) {
+        console.error("Failed to fetch team members", err)
+    }
+}
+
 const fetchEvents = async () => {
     try {
         isLoading.value = true
@@ -71,6 +93,15 @@ const saveEvent = async () => {
         const formData = eventForm.value
         const eventDate = formData.date ? new Date(formData.date) : (selectedDate.value || new Date())
         
+        // Auto-assign color if team member is selected
+        let eventColor = formData.color
+        if (formData.assignedTo) {
+            const member = teamMembers.value.find(m => m.id === formData.assignedTo)
+            if (member && member.color) {
+                eventColor = member.color
+            }
+        }
+
         if (editingEvent.value && editingEvent.value.id) {
             // Update existing event
             const payload = {
@@ -78,7 +109,8 @@ const saveEvent = async () => {
                 date: eventDate,
                 time: formData.time,
                 description: formData.description,
-                color: formData.color,
+                color: eventColor,
+                assignedTo: formData.assignedTo || null,
                 type: 'general'
             }
             const res = await axios.put(`/api/events/${editingEvent.value.id}`, payload)
@@ -98,7 +130,8 @@ const saveEvent = async () => {
                 date: eventDate,
                 time: formData.time,
                 description: formData.description,
-                color: formData.color || '#3b82f6',
+                color: eventColor || '#3b82f6',
+                assignedTo: formData.assignedTo || null,
                 type: 'general'
             }
             const res = await axios.post('/api/events', payload)
@@ -110,37 +143,62 @@ const saveEvent = async () => {
         showEventDialog.value = false
         editingEvent.value = null
         
-        // Optionally move view to the new date if it's in a different month? 
         // For now, let's update selectedDate to the event date so the user sees it immediately
         selectedDate.value = eventDate
         currentDate.value = new Date(eventDate.getFullYear(), eventDate.getMonth(), 1)
         
     } catch (err) {
-        alert("Erreur lors de la sauvegarde")
+        showToast("Erreur lors de la sauvegarde", "error")
     } finally {
         isLoading.value = false
     }
 }
 
 const deleteEvent = async (eventId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) return
+    const isConfirmed = await showConfirm({
+        title: 'Supprimer l\'événement',
+        message: 'Êtes-vous sûr de vouloir supprimer cet événement ?',
+        type: 'danger',
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
 
     try {
         await axios.delete(`/api/events/${eventId}`)
         events.value = events.value.filter(e => e.id !== eventId)
+        showToast("Événement supprimé avec succès !", "success")
     } catch (err) {
-        alert("Erreur lors de la suppression")
+        showToast("Erreur lors de la suppression", "error")
     }
 }
 
-// ... Computed properties (monthYear, daysInMonth, eventsForSelectedDate) remain unchanged ...
-// ... Methods (previousMonth, nextMonth, etc.) remain unchanged until openNewEventDialog ...
+// Helpers
+const getMemberName = (id: string | null | undefined) => {
+    if (!id) return ''
+    const member = teamMembers.value.find(m => m.id === id)
+    return member ? `${member.firstName} ${member.lastName}` : 'Inconnu'
+}
 
+const getMemberColor = (id: string | null | undefined) => {
+    if (!id) return '#a1a1aa'
+    const member = teamMembers.value.find(m => m.id === id)
+    return member?.color || '#3b82f6'
+}
 
-// ... rest of methods ...
-
+const getMemberInitials = (id: string | null | undefined) => {
+    if (!id) return ''
+    const member = teamMembers.value.find(m => m.id === id)
+    if (!member) return ''
+    return `${member.firstName.charAt(0)}${member.lastName.charAt(0)}`.toUpperCase()
+}
 
 // Computed
+const filteredEvents = computed(() => {
+    if (filterEmployeeId.value === 'all') return events.value
+    return events.value.filter(event => event.assignedTo === filterEmployeeId.value)
+})
+
 const monthYear = computed(() => {
     return currentDate.value.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
 })
@@ -155,14 +213,6 @@ const daysInMonth = computed(() => {
     
     const days: Array<{ date: number | null, isCurrentMonth: boolean, fullDate: Date | null }> = []
     
-    // Adjust for Monday start (0=Mon, 6=Sun in standard Euro calendar view)
-    // JS getDay(): 0=Sun, 1=Mon. 
-    // We want Monday as first col.
-    // If start is Sun (0), need 6 empty slots? No, logic:
-    // Mon(1) -> 0 padding
-    // Tue(2) -> 1 padding
-    // ...
-    // Sun(0) -> 6 padding
     const adjustedStartDay = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1
     
     for (let i = 0; i < adjustedStartDay; i++) {
@@ -177,13 +227,23 @@ const daysInMonth = computed(() => {
             fullDate: new Date(year, month, i)
         })
     }
+
+    // Pad end of month to complete the row (multiple of 7)
+    const totalCells = days.length
+    const remainder = totalCells % 7
+    if (remainder !== 0) {
+        const padCount = 7 - remainder
+        for (let i = 0; i < padCount; i++) {
+            days.push({ date: null, isCurrentMonth: false, fullDate: null })
+        }
+    }
     
     return days
 })
 
 const eventsForSelectedDate = computed(() => {
     if (!selectedDate.value) return []
-    return events.value.filter(event => {
+    return filteredEvents.value.filter(event => {
         const d = new Date(event.date)
         return d.toDateString() === selectedDate.value!.toDateString()
     })
@@ -223,7 +283,7 @@ const isWeekend = (date: Date | null) => {
 
 const getEventsForDate = (date: Date | null) => {
     if (!date) return []
-    return events.value.filter(event => {
+    return filteredEvents.value.filter(event => {
         const d = new Date(event.date)
         return d.toDateString() === date.toDateString()
     })
@@ -239,7 +299,8 @@ const openNewEventDialog = () => {
         date: (selectedDate.value ? selectedDate.value.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]) || '',
         time: '',
         description: '',
-        color: userColor
+        color: userColor,
+        assignedTo: ''
     }
     showEventDialog.value = true
 }
@@ -252,7 +313,8 @@ const openEditEventDialog = (event: CalendarEvent) => {
         date: (event.date instanceof Date ? event.date.toISOString().split('T')[0] : new Date(event.date).toISOString().split('T')[0]) || '',
         time: event.time || '',
         description: event.description || '',
-        color: event.color
+        color: event.color,
+        assignedTo: event.assignedTo || ''
     }
     showEventDialog.value = true
 }
@@ -277,7 +339,7 @@ const saveCustomization = (e: Event) => {
 <template>
     <div class="h-full flex flex-col bg-white/50 backdrop-blur-xl">
         <!-- Header -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 px-1">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 px-1">
             <div class="animate-in fade-in slide-in-from-left-4 duration-500">
                 <h2 class="text-3xl font-bold text-zinc-900 tracking-tight capitalize flex items-center gap-3">
                     {{ monthYear }}
@@ -285,15 +347,25 @@ const saveCustomization = (e: Event) => {
                 </h2>
                 <p class="text-sm text-zinc-500 mt-1 font-medium">Gestion et planification</p>
             </div>
-            <div class="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-500">
-                <Button @click="goToToday" variant="outline" class="h-9 px-4 rounded-none border-zinc-200 text-xs font-semibold uppercase tracking-wide hover:bg-black hover:text-white transition-all">
+            <div class="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-500">
+                <!-- Filtre par Collaborateur/Alternante -->
+                <div class="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden px-1">
+                    <Filter :size="12" class="absolute left-3 text-zinc-400" />
+                    <select v-model="filterEmployeeId" class="pl-8 pr-6 py-1 h-8 text-xs font-bold uppercase tracking-wide bg-transparent outline-none cursor-pointer appearance-none min-w-[140px] text-zinc-700">
+                        <option value="all">Tous les rdv</option>
+                        <option v-for="member in teamMembers" :key="member.id" :value="member.id">
+                            {{ member.firstName }} {{ member.lastName }}
+                        </option>
+                    </select>
+                </div>
+                <Button @click="goToToday" variant="outline" class="h-9 px-4 rounded-xl border-zinc-200 text-xs font-semibold uppercase tracking-wide hover:bg-black hover:text-white transition-all">
                     Aujourd'hui
                 </Button>
-                <Button @click="showCustomizeDialog = true" variant="outline" class="h-9 px-4 rounded-none border-zinc-200 text-xs font-semibold uppercase tracking-wide hover:bg-black hover:text-white transition-all">
+                <Button @click="showCustomizeDialog = true" variant="outline" class="h-9 px-4 rounded-xl border-zinc-200 text-xs font-semibold uppercase tracking-wide hover:bg-black hover:text-white transition-all">
                     <Edit2 :size="14" class="mr-2" />
                     Thème
                 </Button>
-                <div class="flex items-center border border-zinc-200 bg-white">
+                <div class="flex items-center border border-zinc-200 bg-white rounded-xl overflow-hidden">
                     <Button @click="previousMonth" variant="ghost" size="sm" class="h-9 w-9 rounded-none hover:bg-zinc-100 text-zinc-600">
                         <ChevronLeft :size="18" />
                     </Button>
@@ -305,55 +377,87 @@ const saveCustomization = (e: Event) => {
             </div>
         </div>
 
+        <!-- Legend (Quick display of team members and their colors) -->
+        <div v-if="teamMembers.length > 0" class="flex flex-wrap gap-2.5 mb-6 px-1 text-xs font-medium text-zinc-500 animate-in fade-in duration-500">
+            <span class="text-zinc-400 self-center">Légende :</span>
+            <div v-for="member in teamMembers" :key="member.id" class="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200/60 px-2.5 py-0.5 rounded-full select-none">
+                <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: member.color }"></span>
+                <span class="text-zinc-700 text-[11px] font-semibold">{{ member.firstName }} {{ member.lastName }}</span>
+            </div>
+        </div>
         <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 overflow-hidden">
             <!-- Calendar Grid -->
             <div class="lg:col-span-2 bg-white border border-zinc-200 shadow-sm p-4 md:p-6 overflow-auto flex flex-col">
                 <!-- Days of week header -->
                 <div class="grid grid-cols-7 gap-px mb-4 border-b border-zinc-100 pb-2">
                     <div v-for="day in ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']" :key="day" 
-                         class="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest py-2">
+                          class="text-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest py-2">
                         {{ day }}
                     </div>
                 </div>
 
                 <!-- Calendar days -->
-                <div class="grid grid-cols-7 gap-2 auto-rows-fr flex-1">
+                <div class="grid grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-lg overflow-hidden auto-rows-fr flex-1">
                     <div 
                         v-for="(day, index) in daysInMonth" 
                         :key="index"
                         @click="selectDate(day.fullDate)"
                         :class="`
-                            relative min-h-[100px] p-2 border border-transparent transition-all duration-200 cursor-pointer group
-                            ${!day.isCurrentMonth ? 'opacity-0 pointer-events-none' : ''}
-                            ${day.isCurrentMonth ? 'hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 z-0 hover:z-10 bg-white' : ''}
-                            ${isToday(day.fullDate) ? 'bg-zinc-50 ring-1 ring-inset ring-black' : ''}
+                            relative min-h-[110px] p-2.5 transition-all duration-150 cursor-pointer flex flex-col justify-between select-none
+                            ${!day.isCurrentMonth ? 'bg-zinc-100/50 pointer-events-none' : 'bg-white hover:bg-zinc-50/80'}
                         `"
                         :style="{
-                            backgroundColor: day.isCurrentMonth ? (isToday(day.fullDate) ? calendarTheme.todayColor : (selectedDate && day.fullDate && selectedDate.toDateString() === day.fullDate.toDateString() ? '#18181b' : (isWeekend(day.fullDate) ? calendarTheme.weekendColor : 'white'))) : 'transparent',
-                            color: selectedDate && day.fullDate && selectedDate.toDateString() === day.fullDate.toDateString() ? 'white' : 'inherit'
+                            boxShadow: selectedDate && day.fullDate && selectedDate.toDateString() === day.fullDate.toDateString() 
+                                ? 'inset 0 0 0 2px #000000' 
+                                : '',
+                            backgroundColor: day.isCurrentMonth 
+                                ? (isToday(day.fullDate) 
+                                    ? '#fafafa' 
+                                    : (isWeekend(day.fullDate) ? '#fbfbfb' : 'white')) 
+                                : '#f4f4f5'
                         }"
                     >
-                        <div v-if="day.date" class="flex flex-col h-full">
-                            <div class="flex justify-between items-start">
-                                <span :class="`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full transition-colors ${isToday(day.fullDate) && !selectedDate?.toDateString().includes(day.fullDate?.toDateString() || '') ? 'bg-black text-white' : ''} ${selectedDate && day.fullDate && selectedDate.toDateString() === day.fullDate.toDateString() ? 'text-white' : 'text-zinc-700'}`">
+                        <div v-if="day.date" class="flex flex-col h-full justify-between">
+                            <!-- Cell Header -->
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span 
+                                    :class="`
+                                        text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full transition-all
+                                        ${isToday(day.fullDate) ? 'bg-black text-white shadow-sm' : 'text-zinc-600'}
+                                        ${selectedDate && day.fullDate && selectedDate.toDateString() === day.fullDate.toDateString() && !isToday(day.fullDate) ? 'text-black font-extrabold ring-1 ring-zinc-400' : ''}
+                                    `"
+                                >
                                     {{ day.date }}
                                 </span>
                                 <div v-if="getEventsForDate(day.fullDate).length > 0" class="flex gap-0.5">
-                                     <div v-for="i in Math.min(getEventsForDate(day.fullDate).length, 3)" :key="i" class="w-1 h-1 rounded-full bg-current opacity-50"></div>
+                                    <span 
+                                        v-for="event in getEventsForDate(day.fullDate).slice(0, 3)" 
+                                        :key="event.id"
+                                        class="w-1.5 h-1.5 rounded-full"
+                                        :style="{ backgroundColor: event.color }"
+                                    ></span>
                                 </div>
                             </div>
                             
-                            <div class="flex-1 space-y-1 mt-2 overflow-hidden">
+                            <!-- Events list -->
+                            <div class="flex-1 space-y-1 overflow-hidden min-h-[50px] flex flex-col justify-start">
                                 <div 
-                                    v-for="event in getEventsForDate(day.fullDate).slice(0, 3)" 
+                                    v-for="event in getEventsForDate(day.fullDate).slice(0, 2)" 
                                     :key="event.id"
-                                    class="text-[10px] px-1.5 py-1 rounded-sm truncate font-medium flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-                                    :style="{ backgroundColor: event.color + '20', color: selectedDate && day.fullDate && selectedDate.toDateString() === day.fullDate.toDateString() ? 'white' : event.color, borderLeft: `2px solid ${event.color}` }"
+                                    class="text-[9px] px-2 py-0.5 rounded-md truncate font-semibold flex items-center justify-between gap-1 transition-all border-l-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:brightness-95"
+                                    :style="{ 
+                                        backgroundColor: `${event.color}12`, 
+                                        borderColor: event.color,
+                                        color: '#18181b'
+                                    }"
                                 >
-                                    {{ event.title }}
+                                    <span class="truncate">{{ event.title }}</span>
+                                    <span v-if="event.assignedTo" class="shrink-0 text-[7px] font-bold px-1 py-0.2 rounded bg-white/80 border border-zinc-200 text-zinc-500 font-mono">
+                                        {{ getMemberInitials(event.assignedTo) }}
+                                    </span>
                                 </div>
-                                <div v-if="getEventsForDate(day.fullDate).length > 3" class="text-[9px] pl-1 opacity-70 font-medium">
-                                    +{{ getEventsForDate(day.fullDate).length - 3 }} autres
+                                <div v-if="getEventsForDate(day.fullDate).length > 2" class="text-[8px] pl-1 font-bold text-zinc-400 mt-0.5">
+                                    +{{ getEventsForDate(day.fullDate).length - 2 }} rdv
                                 </div>
                             </div>
                         </div>
@@ -400,7 +504,20 @@ const saveCustomization = (e: Event) => {
                         :style="{ borderLeft: `3px solid ${event.color}` }"
                     >
                         <div class="flex items-start justify-between mb-2">
-                             <h4 class="font-bold text-sm text-zinc-900">{{ event.title }}</h4>
+                             <div class="flex-1">
+                                 <h4 class="font-bold text-sm text-zinc-900">{{ event.title }}</h4>
+                                 
+                                 <!-- Assignee info -->
+                                 <div v-if="event.assignedTo" class="flex items-center gap-1.5 mt-1">
+                                     <span 
+                                         class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                                         :style="{ backgroundColor: getMemberColor(event.assignedTo) + '15', color: getMemberColor(event.assignedTo) }"
+                                     >
+                                         <span class="w-1 h-1 rounded-full" :style="{ backgroundColor: getMemberColor(event.assignedTo) }"></span>
+                                         Assigné à : {{ getMemberName(event.assignedTo) }}
+                                     </span>
+                                 </div>
+                             </div>
                              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-3 right-3 bg-white pl-2">
                                 <Button @click="openEditEventDialog(event)" variant="ghost" size="sm" class="h-6 w-6 p-0 hover:bg-zinc-100 rounded-sm">
                                     <Edit2 :size="12" />
@@ -429,7 +546,7 @@ const saveCustomization = (e: Event) => {
 
         <!-- Event Dialog -->
         <Dialog v-model:open="showEventDialog">
-            <DialogContent class="sm:max-w-md rounded-none border-zinc-200 p-0 overflow-hidden">
+            <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 p-0 overflow-hidden shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200">
                 <DialogHeader class="p-6 pb-2 bg-zinc-50 border-b border-zinc-100">
                     <DialogTitle class="text-xl font-bold tracking-tight text-zinc-900">
                         {{ editingEvent ? 'Modifier' : 'Nouveau' }}
@@ -443,7 +560,7 @@ const saveCustomization = (e: Event) => {
                 <form @submit.prevent="handleEventSubmit" class="p-6 space-y-5">
                     <div class="space-y-1.5">
                         <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Titre</label>
-                        <Input v-model="eventForm.title" required placeholder="Ex: Réunion client" class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                        <Input v-model="eventForm.title" required placeholder="Ex: Réunion client" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                     </div>
 
                     <div class="space-y-1.5">
@@ -452,23 +569,41 @@ const saveCustomization = (e: Event) => {
                             v-model="eventForm.date"
                             type="date" 
                             required
-                            class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" 
+                            class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" 
                         />
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Alternante / Collaborateur</label>
+                        <div class="relative">
+                            <select 
+                                v-model="eventForm.assignedTo" 
+                                class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-xl shadow-sm focus:border-zinc-950 outline-none appearance-none bg-white text-black font-medium"
+                            >
+                                <option value="">-- Non Assigné --</option>
+                                <option v-for="member in teamMembers" :key="member.id" :value="member.id">
+                                    {{ member.firstName }} {{ member.lastName }}
+                                </option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-zinc-400">
+                                <User :size="16" />
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Heure</label>
-                            <Input v-model="eventForm.time" type="time" class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                            <Input v-model="eventForm.time" type="time" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                         </div>
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Couleur</label>
-                            <div class="h-10 border border-zinc-300 rounded-sm bg-white flex items-center px-1">
+                            <div class="h-10 border border-zinc-300 rounded-xl bg-white flex items-center px-1">
                                 <input 
                                     type="color" 
                                     v-model="eventForm.color"
                                     class="h-8 w-full cursor-pointer bg-transparent border-none"
-                                />
+                                 />
                             </div>
                         </div>
                     </div>
@@ -478,15 +613,15 @@ const saveCustomization = (e: Event) => {
                         <textarea 
                             v-model="eventForm.description"
                             placeholder="Détails de l'événement..." 
-                            class="w-full px-3 py-2 border border-zinc-300 rounded-sm focus:border-black outline-none text-sm min-h-[100px] resize-none bg-white text-black font-medium"
+                            class="w-full px-3 py-2 border border-zinc-300 rounded-xl focus:border-zinc-950 outline-none text-sm min-h-[100px] resize-none bg-white text-black font-medium"
                         ></textarea>
                     </div>
 
                     <div class="flex justify-end gap-3 pt-2">
-                        <Button type="button" variant="ghost" @click="showEventDialog = false" class="rounded-sm hover:bg-zinc-100 text-zinc-500">
+                        <Button type="button" variant="ghost" @click="showEventDialog = false" class="rounded-xl hover:bg-zinc-100 text-zinc-500">
                             Annuler
                         </Button>
-                        <Button type="submit" class="bg-black hover:bg-zinc-800 text-white rounded-sm min-w-[100px]">
+                        <Button type="submit" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl min-w-[100px] shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                             {{ editingEvent ? 'Enregistrer' : 'Créer' }}
                         </Button>
                     </div>
@@ -496,7 +631,7 @@ const saveCustomization = (e: Event) => {
 
         <!-- Customize Dialog -->
         <Dialog v-model:open="showCustomizeDialog">
-            <DialogContent class="sm:max-w-md rounded-none border-zinc-200">
+            <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 shadow-2xl bg-white/95 backdrop-blur-xl p-6 animate-in zoom-in-95 duration-200">
                 <DialogHeader>
                     <DialogTitle class="text-xl font-bold tracking-tight">Apparence</DialogTitle>
                     <DialogDescription>Personnalisez les couleurs de votre calendrier</DialogDescription>
@@ -521,8 +656,8 @@ const saveCustomization = (e: Event) => {
                         </div>
                     </div>
                     <DialogFooter class="mt-6">
-                        <Button type="button" variant="outline" @click="showCustomizeDialog = false" class="rounded-none border-zinc-200">Annuler</Button>
-                        <Button type="submit" class="bg-black hover:bg-zinc-800 text-white rounded-none">Sauvegarder</Button>
+                        <Button type="button" variant="outline" @click="showCustomizeDialog = false" class="rounded-xl border-zinc-200/80">Annuler</Button>
+                        <Button type="submit" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">Sauvegarder</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

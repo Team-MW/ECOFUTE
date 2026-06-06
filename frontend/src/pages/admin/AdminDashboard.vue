@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watchEffect, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth, UserButton, useUser } from '@clerk/vue'
 import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
     Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
-    TrendingUp, BarChart3, Edit3
+    TrendingUp, BarChart3, Edit3, GraduationCap
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +21,9 @@ import InvoiceCreator from '@/components/admin/InvoiceCreator.vue'
 import TeamManager from '@/components/admin/TeamManager.vue'
 import DashboardStats from '@/components/admin/DashboardStats.vue'
 import Planning from '@/components/admin/Planning.vue'
+import SchoolManager from '@/components/admin/SchoolManager.vue'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
+import { showToast, showConfirm } from '@/lib/feedback'
 
 // --- Interfaces ---
 interface Document {
@@ -61,6 +63,8 @@ const { user } = useUser()
 watchEffect(() => {
     if (isLoaded.value && !isSignedIn.value) {
         router.push('/login')
+    } else if (isLoaded.value && isSignedIn.value) {
+        fetchUsers()
     }
 })
 
@@ -81,14 +85,26 @@ const editForm = ref({
     tvaNumber: ''
 })
 
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools'>('clients')
+
+const isAdmin = computed(() => {
+    if (!user.value) return false
+    const email = user.value.emailAddresses?.[0]?.emailAddress
+    return email === 'ecomaxifute@gmail.com' || email === 'sofianelamine772@gmail.com'
+})
+
+watch([activeView, isAdmin], ([newView, adminVal]) => {
+    if ((newView === 'team' || newView === 'sales') && !adminVal) {
+        activeView.value = 'clients'
+    }
+})
 const searchTerm = ref('')
 const showCreateForm = ref(false)
 const showEditForm = ref(false)
 const isLoading = ref(false)
 const showSuccess = ref(false)
 const isMobileMenuOpen = ref(false)
-const isPinVerified = ref(false) 
+const isPinVerified = ref(true) 
 const pinCode = ref('')
 const error = ref('')
 const isLoadingClients = ref(false)
@@ -176,7 +192,7 @@ const handleCreateUser = async (e: Event) => {
         setTimeout(() => showSuccess.value = false, 3000)
     } catch (err: any) {
         setIsLoading(false)
-        alert("Erreur: " + (err.response?.data?.error || err.message))
+        showToast("Erreur: " + (err.response?.data?.error || err.message), 'error')
     }
 }
 
@@ -220,18 +236,23 @@ const handleUpdateUser = async () => {
         }
 
         showEditForm.value = false
-        alert("Client mis à jour avec succès !")
+        showToast("Client mis à jour avec succès !", 'success')
     } catch (err: any) {
-        alert("Erreur mise à jour: " + (err.response?.data?.error || err.message))
+        showToast("Erreur mise à jour: " + (err.response?.data?.error || err.message), 'error')
     } finally {
         setIsLoading(false)
     }
 }
 
 const handleDeleteUser = async (userId: number, userName: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le client "${userName}" ?\n\nCette action supprimera également tous ses documents et est irréversible.`)) {
-        return
-    }
+    const isConfirmed = await showConfirm({
+        title: 'Supprimer le client',
+        message: `Êtes-vous sûr de vouloir supprimer le client "${userName}" ?\n\nCette action supprimera également tous ses documents et est irréversible.`,
+        type: 'danger',
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
 
     try {
         await axios.delete(`/api/clients/${userId}`)
@@ -239,14 +260,21 @@ const handleDeleteUser = async (userId: number, userName: string) => {
         if (selectedUser.value?.id === userId) {
             selectedUser.value = null
         }
-        alert("Client supprimé avec succès !")
+        showToast("Client supprimé avec succès !", 'success')
     } catch (e) {
-        alert("Erreur réseau lors de la suppression")
+        showToast("Erreur réseau lors de la suppression", 'error')
     }
 }
 
 const handleDeleteDocument = async (docId: number, docName: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le document "${docName}" ?`)) return
+    const isConfirmed = await showConfirm({
+        title: 'Supprimer le document',
+        message: `Êtes-vous sûr de vouloir supprimer le document "${docName}" ?`,
+        type: 'danger',
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
 
     try {
         await axios.delete(`/api/documents/${docId}`)
@@ -264,9 +292,9 @@ const handleDeleteDocument = async (docId: number, docName: string) => {
             return u
         })
         
-        alert("Document supprimé avec succès !")
+        showToast("Document supprimé avec succès !", 'success')
     } catch (e) {
-        alert("Erreur suppression")
+        showToast("Erreur suppression", 'error')
     }
 }
 
@@ -282,47 +310,8 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 </script>
 
 <template>
-    <!-- PIN Auth Screen -->
-    <div v-if="!isPinVerified" class="min-h-screen bg-zinc-50 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-        <div class="absolute inset-0 z-0 opacity-5">
-            <div class="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-black rounded-full filter blur-[120px]"></div>
-            <div class="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-gray-500 rounded-full filter blur-[100px]"></div>
-        </div>
-
-        <!-- User Button specific for Clerk context -->
-        <div class="absolute top-4 right-4 z-50">
-             <UserButton after-sign-out-url="/login" />
-        </div>
-
-        <div class="bg-white border border-zinc-200 p-8 max-w-md w-full text-center relative z-10 shadow-2xl shadow-black/5 rounded-none">
-            <div class="flex items-center justify-center mx-auto mb-6">
-                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-20" />
-            </div>
-            <h2 class="text-xl font-bold text-black tracking-tight mb-2">Espace Admin</h2>
-            <p class="text-zinc-500 mb-8 text-sm">Veuillez entrer le code de sécurité pour accéder.</p>
-
-            <form @submit.prevent="handlePinSubmit" class="space-y-6">
-                <div class="relative">
-                    <input
-                        type="password"
-                        v-model="pinCode"
-                        class="w-full text-center text-3xl tracking-[1em] font-light py-4 border-b-2 border-zinc-200 focus:border-black outline-none transition-all bg-transparent placeholder-zinc-200"
-                        placeholder="•••••"
-                        maxlength="5"
-                        autofocus
-                    />
-                </div>
-                <p v-if="error" class="text-red-500 text-xs font-medium uppercase tracking-wider">{{ error }}</p>
-
-                <Button type="submit" class="w-full py-6 text-sm font-semibold uppercase tracking-widest bg-black text-white hover:bg-zinc-800 rounded-none transition-all">
-                    Déverrouiller
-                </Button>
-            </form>
-        </div>
-    </div>
-
     <!-- Main Admin Interface -->
-    <div v-else class="flex h-screen bg-white text-zinc-900 font-sans overflow-hidden">
+    <div class="flex h-screen bg-white text-zinc-900 font-sans overflow-hidden">
         
         <!-- Mobile Sidebar Overlay -->
         <div 
@@ -367,6 +356,14 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     Planning Équipe
                 </button>
                 <button
+                    @click="activeView = 'schools'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'schools' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <GraduationCap :size="18" />
+                    Écoles & Démarches
+                </button>
+                <button
+                    v-if="isAdmin"
                     @click="activeView = 'sales'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'sales' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
                 >
@@ -387,8 +384,9 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     <FilePlus :size="18" />
                     Création Facture
                 </button>
-                <div class="px-2 py-3 mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Administration</div>
+                <div v-if="isAdmin" class="px-2 py-3 mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Administration</div>
                 <button
+                    v-if="isAdmin"
                     @click="activeView = 'team'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'team' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
                 >
@@ -428,7 +426,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         </div>
                     </button>
                     <div class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
-                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : 'Tableau de bord / Clients' }}
+                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 md:gap-4">
@@ -542,7 +540,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 </div>
 
                 <!-- Sales View -->
-                <div v-else-if="activeView === 'sales'" class="h-full">
+                <div v-else-if="activeView === 'sales' && isAdmin" class="h-full">
                     <SalesTracking />
                 </div>
 
@@ -557,13 +555,18 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 </div>
 
                 <!-- Team View -->
-                <div v-else-if="activeView === 'team'" class="h-full overflow-y-auto">
+                <div v-else-if="activeView === 'team' && isAdmin" class="h-full overflow-y-auto">
                     <TeamManager />
                 </div>
 
                 <!-- Planning View -->
                 <div v-else-if="activeView === 'planning'" class="h-full">
                     <Planning />
+                </div>
+
+                <!-- Schools View -->
+                <div v-else-if="activeView === 'schools'" class="h-full">
+                    <SchoolManager />
                 </div>
 
                 <!-- Clients List View -->
@@ -656,7 +659,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 
         <!-- Create User Modal -->
          <Dialog v-model:open="showCreateForm">
-            <DialogContent class="sm:max-w-2xl rounded-none border-zinc-200 max-h-[90vh] overflow-y-auto">
+            <DialogContent class="sm:max-w-2xl rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle class="text-xl font-bold tracking-tight">Nouveau Client</DialogTitle>
                     <DialogDescription>Créez manuellement un client pour l'ajouter à EcoFuté.</DialogDescription>
@@ -665,22 +668,22 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Prénom *</label>
-                            <Input name="firstName" required placeholder="Ex: Thomas" class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input name="firstName" required placeholder="Ex: Thomas" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                         <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nom *</label>
-                            <Input name="lastName" required placeholder="Ex: Martin" class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input name="lastName" required placeholder="Ex: Martin" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4">
                          <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Email *</label>
-                            <Input type="email" name="email" required placeholder="client@exemple.com" class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input type="email" name="email" required placeholder="client@exemple.com" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                          <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Téléphone</label>
-                            <Input name="phone" placeholder="06 12 34 56 78" class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input name="phone" placeholder="06 12 34 56 78" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                     </div>
                     
@@ -689,38 +692,38 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         <div class="space-y-4">
                             <div class="space-y-1">
                                 <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Société</label>
-                                <Input name="company" placeholder="Ex: Société SAS" class="rounded-none border-zinc-200 focus:border-black" />
+                                <Input name="company" placeholder="Ex: Société SAS" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                             </div>
                             <div class="space-y-1">
                                 <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Adresse</label>
-                                <Input name="address" placeholder="10 Rue de la Paix" class="rounded-none border-zinc-200 focus:border-black" />
+                                <Input name="address" placeholder="10 Rue de la Paix" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Code Postal</label>
-                                    <Input name="zipCode" placeholder="75000" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input name="zipCode" placeholder="75000" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ville</label>
-                                    <Input name="city" placeholder="Paris" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input name="city" placeholder="Paris" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                             </div>
                              <div class="grid grid-cols-2 gap-4">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">SIRET</label>
-                                    <Input name="siret" placeholder="123 456 789 00012" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input name="siret" placeholder="123 456 789 00012" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">N° TVA</label>
-                                    <Input name="tvaNumber" placeholder="FR 12 345678900" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input name="tvaNumber" placeholder="FR 12 345678900" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                             </div>
                         </div>
                     </div>
                     
                     <DialogFooter class="mt-6">
-                        <Button type="button" variant="outline" @click="showCreateForm = false" class="rounded-none border-zinc-200">Annuler</Button>
-                        <Button type="submit" :disabled="isLoading" class="bg-black hover:bg-zinc-800 text-white rounded-none">
+                        <Button type="button" variant="outline" @click="showCreateForm = false" class="rounded-xl border-zinc-200/80">Annuler</Button>
+                        <Button type="submit" :disabled="isLoading" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                             <Loader v-if="isLoading" class="animate-spin mr-2" :size="16" /> Créer le client
                         </Button>
                     </DialogFooter>
@@ -730,7 +733,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 
         <!-- Edit User Modal -->
          <Dialog v-model:open="showEditForm">
-            <DialogContent class="sm:max-w-2xl rounded-none border-zinc-200 max-h-[90vh] overflow-y-auto">
+            <DialogContent class="sm:max-w-2xl rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle class="text-xl font-bold tracking-tight">Modifier Client</DialogTitle>
                     <DialogDescription>Mettre à jour les informations du client.</DialogDescription>
@@ -739,22 +742,22 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Prénom *</label>
-                            <Input v-model="editForm.firstName" required class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input v-model="editForm.firstName" required class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                         <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nom *</label>
-                            <Input v-model="editForm.lastName" required class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input v-model="editForm.lastName" required class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4">
                          <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Email *</label>
-                            <Input type="email" v-model="editForm.email" required class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input type="email" v-model="editForm.email" required class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                          <div class="space-y-1">
                             <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Téléphone</label>
-                            <Input v-model="editForm.phone" class="rounded-none border-zinc-200 focus:border-black" />
+                            <Input v-model="editForm.phone" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                         </div>
                     </div>
                     
@@ -763,38 +766,38 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         <div class="space-y-4">
                             <div class="space-y-1">
                                 <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Société</label>
-                                <Input v-model="editForm.company" class="rounded-none border-zinc-200 focus:border-black" />
+                                <Input v-model="editForm.company" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                             </div>
                             <div class="space-y-1">
                                 <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Adresse</label>
-                                <Input v-model="editForm.address" class="rounded-none border-zinc-200 focus:border-black" />
+                                <Input v-model="editForm.address" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Code Postal</label>
-                                    <Input v-model="editForm.zipCode" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input v-model="editForm.zipCode" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ville</label>
-                                    <Input v-model="editForm.city" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input v-model="editForm.city" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                             </div>
                              <div class="grid grid-cols-2 gap-4">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">SIRET</label>
-                                    <Input v-model="editForm.siret" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input v-model="editForm.siret" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">N° TVA</label>
-                                    <Input v-model="editForm.tvaNumber" class="rounded-none border-zinc-200 focus:border-black" />
+                                    <Input v-model="editForm.tvaNumber" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
                             </div>
                         </div>
                     </div>
                     
                     <DialogFooter class="mt-6">
-                        <Button type="button" variant="outline" @click="showEditForm = false" class="rounded-none border-zinc-200">Annuler</Button>
-                        <Button type="submit" :disabled="isLoading" class="bg-black hover:bg-zinc-800 text-white rounded-none">
+                        <Button type="button" variant="outline" @click="showEditForm = false" class="rounded-xl border-zinc-200/80">Annuler</Button>
+                        <Button type="submit" :disabled="isLoading" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                             <Loader v-if="isLoading" class="animate-spin mr-2" :size="16" /> Mettre à jour
                         </Button>
                     </DialogFooter>

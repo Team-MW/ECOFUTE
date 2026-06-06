@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
+import { showToast, showConfirm } from '@/lib/feedback'
 
 interface TeamMember {
     id: string
@@ -55,9 +56,9 @@ const handleInvite = async () => {
         members.value.push(res.data)
         showInviteDialog.value = false
         form.value = { firstName: '', lastName: '', email: '', password: '', color: '#3b82f6' }
-        alert("Utilisateur créé avec succès !")
+        showToast("Utilisateur créé avec succès !", "success")
     } catch (e: any) {
-        alert("Erreur: " + (e.response?.data?.error || e.message))
+        showToast("Erreur: " + (e.response?.data?.error || e.message), "error")
     } finally {
         isSubmitting.value = false
     }
@@ -78,12 +79,20 @@ const handleInvite = async () => {
 // </div>
 
 const handleDelete = async (id: string) => {
-    if (!confirm("Voulez-vous vraiment supprimer cet accès ?")) return
+    const isConfirmed = await showConfirm({
+        title: 'Supprimer l\'accès',
+        message: 'Voulez-vous vraiment supprimer cet accès ?',
+        type: 'danger',
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
     try {
         await axios.delete(`/api/users/${id}`)
         members.value = members.value.filter(m => m.id !== id)
+        showToast("Accès supprimé avec succès !", "success")
     } catch (e) {
-        alert("Impossible de supprimer")
+        showToast("Impossible de supprimer", "error")
     }
 }
 
@@ -128,7 +137,20 @@ onMounted(fetchMembers)
                         </div>
                         <div>
                             <h3 class="font-bold text-black">{{ member.firstName }} {{ member.lastName }}</h3>
-                            <Badge variant="secondary" class="mt-1 text-[10px] bg-zinc-100 text-zinc-600 font-normal">Membre EcoFuté</Badge>
+                            <Badge 
+                                v-if="member.email === 'ecomaxifute@gmail.com' || member.email === 'sofianelamine772@gmail.com'"
+                                variant="secondary" 
+                                class="mt-1 text-[10px] bg-zinc-950 text-white font-normal"
+                            >
+                                Admin EcoFuté
+                            </Badge>
+                            <Badge 
+                                v-else 
+                                variant="secondary" 
+                                class="mt-1 text-[10px] bg-zinc-100 text-zinc-600 font-normal"
+                            >
+                                Membre EcoFuté
+                            </Badge>
                         </div>
                     </div>
                     
@@ -146,12 +168,11 @@ onMounted(fetchMembers)
             </div>
         </div>
 
-        <!-- Modal -->
         <Dialog v-model:open="showInviteDialog">
-            <DialogContent class="sm:max-w-md">
+            <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200">
                 <DialogHeader>
-                    <DialogTitle>Créer un accès utilisateur</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle class="text-xl font-bold tracking-tight text-zinc-900">Créer un accès utilisateur</DialogTitle>
+                    <DialogDescription class="text-xs text-zinc-500 mt-1">
                         Ajoutez un nouveau membre à l'équipe. Il pourra se connecter avec ces identifiants.
                     </DialogDescription>
                 </DialogHeader>
@@ -160,23 +181,23 @@ onMounted(fetchMembers)
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
                             <label class="text-xs font-bold uppercase text-zinc-500">Prénom</label>
-                            <Input v-model="form.firstName" required placeholder="Jean" />
+                            <Input v-model="form.firstName" required placeholder="Jean" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                         </div>
                         <div class="space-y-2">
                             <label class="text-xs font-bold uppercase text-zinc-500">Nom</label>
-                            <Input v-model="form.lastName" required placeholder="Dupont" />
+                            <Input v-model="form.lastName" required placeholder="Dupont" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                         </div>
                     </div>
                     
                     <div class="space-y-2">
                         <label class="text-xs font-bold uppercase text-zinc-500">Email professionnel</label>
-                        <Input v-model="form.email" type="email" required placeholder="jean.dupont@ecofute.com" />
+                        <Input v-model="form.email" type="email" required placeholder="jean.dupont@ecofute.com" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                     </div>
 
                     <div class="space-y-2">
                         <label class="text-xs font-bold uppercase text-zinc-500">Mot de passe temporaire</label>
                         <div class="relative">
-                            <Input v-model="form.password" type="text" required placeholder="Mot de passe fort" class="pl-9" />
+                            <Input v-model="form.password" type="text" required placeholder="Mot de passe fort" class="pl-9 rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                             <Lock :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                         </div>
                         <p class="text-[10px] text-zinc-400">Le mot de passe doit contenir au moins 8 caractères.</p>
@@ -184,19 +205,22 @@ onMounted(fetchMembers)
 
                     <div class="space-y-2">
                         <label class="text-xs font-bold uppercase text-zinc-500">Couleur d'identification</label>
-                        <div class="flex items-center gap-3 p-2 border border-zinc-200 rounded-md">
+                        <div class="flex items-center gap-3 p-2 border border-zinc-200 rounded-xl bg-white">
                             <input 
                                 type="color" 
                                 v-model="form.color" 
-                                class="h-8 w-12 p-0 border-0 rounded cursor-pointer bg-transparent" 
+                                class="h-8 w-12 p-0 border-0 rounded-lg cursor-pointer bg-transparent" 
                             />
                             <span class="text-xs font-mono text-zinc-500">{{ form.color }}</span>
                         </div>
                         <p class="text-[10px] text-zinc-400">Cette couleur sera utilisée pour ses événements dans le calendrier.</p>
                     </div>
 
-                    <div class="flex justify-end pt-4">
-                        <Button type="submit" :disabled="isSubmitting" class="bg-black text-white hover:bg-zinc-800">
+                    <div class="flex justify-end gap-3 pt-4">
+                        <Button type="button" variant="ghost" @click="showInviteDialog = false" class="rounded-xl hover:bg-zinc-100 text-zinc-500">
+                            Annuler
+                        </Button>
+                        <Button type="submit" :disabled="isSubmitting" class="bg-zinc-950 text-white hover:bg-zinc-900 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                             <Loader v-if="isSubmitting" class="animate-spin mr-2" :size="14" />
                             {{ isSubmitting ? 'Création...' : 'Créer l\'accès' }}
                         </Button>

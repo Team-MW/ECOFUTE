@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import axios from 'axios'
 import { addDays, startOfWeek, format, isSameDay } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { showToast, showConfirm } from '@/lib/feedback'
 
 interface CalendarEvent {
     id: number
@@ -170,24 +171,38 @@ const saveEvent = async () => {
         
     } catch (err) {
         console.error(err)
-        alert("Erreur lors de la sauvegarde")
+        showToast("Erreur lors de la sauvegarde", "error")
     } finally {
         isLoading.value = false
     }
 }
 
 const deleteEvent = async (eventId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce shift ?')) return
+    const isConfirmed = await showConfirm({
+        title: 'Supprimer le shift',
+        message: 'Êtes-vous sûr de vouloir supprimer ce shift ?',
+        type: 'danger',
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
     try {
         await axios.delete(`/api/events/${eventId}`)
         events.value = events.value.filter(e => e.id !== eventId)
+        showToast("Shift supprimé avec succès !", "success")
     } catch (err) {
-        alert("Erreur lors de la suppression")
+        showToast("Erreur lors de la suppression", "error")
     }
 }
 
 const duplicatePreviousWeek = async () => {
-    if(!confirm("Cela va copier tous les shifts de la semaine précédente vers la semaine actuelle. Continuer ?")) return
+    const isConfirmed = await showConfirm({
+        title: 'Dupliquer la semaine',
+        message: 'Cela va copier tous les shifts de la semaine précédente vers la semaine actuelle. Continuer ?',
+        confirmText: 'Continuer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
 
     isLoading.value = true
     try {
@@ -202,7 +217,7 @@ const duplicatePreviousWeek = async () => {
         })
 
         if(eventsToCopy.length === 0) {
-            alert("Aucun shift trouvé la semaine dernière.")
+            showToast("Aucun shift trouvé la semaine dernière.", "warning")
             isLoading.value = false
             return
         }
@@ -225,10 +240,10 @@ const duplicatePreviousWeek = async () => {
 
         await axios.post('/api/events', newEventsPayload)
         await fetchEvents()
-        
+        showToast("Semaine dupliquée avec succès !", "success")
     } catch(err) {
         console.error(err)
-        alert("Erreur lors de la duplication")
+        showToast("Erreur lors de la duplication", "error")
     } finally {
         isLoading.value = false
         showOptionsDialog.value = false
@@ -450,7 +465,7 @@ const openEditEventDialog = (event: CalendarEvent) => {
 
         <!-- Event Dialog -->
         <Dialog v-model:open="showEventDialog">
-            <DialogContent class="sm:max-w-md rounded-none border-zinc-200 p-0 overflow-hidden">
+            <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 p-0 overflow-hidden shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200">
                 <DialogHeader class="p-6 pb-2 bg-zinc-50 border-b border-zinc-100">
                     <DialogTitle class="text-xl font-bold tracking-tight text-zinc-900">
                         {{ editingEvent ? 'Modifier Shift' : 'Nouveau Shift' }}
@@ -460,7 +475,7 @@ const openEditEventDialog = (event: CalendarEvent) => {
                 <form @submit.prevent="saveEvent" class="p-6 space-y-5">
                     <div class="space-y-1.5">
                         <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Intitulé</label>
-                        <Input v-model="eventForm.title" required placeholder="Ex: Matin, Soir, Journée..." class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                        <Input v-model="eventForm.title" required placeholder="Ex: Matin, Soir, Journée..." class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                     </div>
 
                     <div class="space-y-1.5">
@@ -468,14 +483,14 @@ const openEditEventDialog = (event: CalendarEvent) => {
                         <div class="relative">
                             <select 
                                 v-model="eventForm.assignedTo" 
-                                class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-sm shadow-sm focus:border-black outline-none appearance-none bg-white text-black font-medium"
+                                class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-xl shadow-sm focus:border-zinc-950 outline-none appearance-none bg-white text-black font-medium"
                             >
                                 <option value="">-- Non Assigné --</option>
                                 <option v-for="member in teamMembers" :key="member.id" :value="member.id">
                                     {{ member.firstName }} {{ member.lastName }}
                                 </option>
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-zinc-500">
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-zinc-400">
                                 <User :size="16" />
                             </div>
                         </div>
@@ -484,11 +499,11 @@ const openEditEventDialog = (event: CalendarEvent) => {
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Date</label>
-                            <Input v-model="eventForm.date" type="date" required class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                            <Input v-model="eventForm.date" type="date" required class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                         </div>
                          <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Couleur</label>
-                            <div class="h-10 border border-zinc-300 rounded-sm bg-white flex items-center px-1">
+                            <div class="h-10 border border-zinc-300 rounded-xl bg-white flex items-center px-1">
                                 <input type="color" v-model="eventForm.color" class="h-8 w-full cursor-pointer bg-transparent border-none" />
                             </div>
                         </div>
@@ -497,16 +512,16 @@ const openEditEventDialog = (event: CalendarEvent) => {
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Début</label>
-                            <Input v-model="eventForm.startTime" type="time" required class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                            <Input v-model="eventForm.startTime" type="time" required class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                         </div>
                          <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Fin</label>
-                            <Input v-model="eventForm.endTime" type="time" required class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                            <Input v-model="eventForm.endTime" type="time" required class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                         </div>
                     </div>
 
                     <!-- Recurrence Option (Only for new events) -->
-                    <div v-if="!editingEvent" class="bg-zinc-50 p-4 rounded-sm border border-zinc-200 space-y-3">
+                    <div v-if="!editingEvent" class="bg-zinc-50 p-4 rounded-xl border border-zinc-200 space-y-3">
                         <div class="flex items-center gap-2">
                              <input type="checkbox" id="recurrence" v-model="eventForm.recurrence" class="w-4 h-4 rounded border-zinc-300 text-black focus:ring-black" />
                              <label for="recurrence" class="text-sm font-semibold select-none">Répéter chaque semaine</label>
@@ -514,7 +529,7 @@ const openEditEventDialog = (event: CalendarEvent) => {
                         
                         <div v-if="eventForm.recurrence" class="animate-in slide-in-from-top-2 fade-in duration-200">
                              <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-1.5">Jusqu'au</label>
-                             <Input v-model="eventForm.recurrenceEndDate" type="date" class="rounded-sm border-zinc-300 focus:border-black bg-white text-black font-medium" />
+                             <Input v-model="eventForm.recurrenceEndDate" type="date" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
                              <p class="text-[10px] text-zinc-400 mt-2 leading-tight">
                                  Cela créera un shift identique tous les {{ format(new Date(eventForm.date), 'EEEE', { locale: fr }) }} jusqu'à la date de fin.
                              </p>
@@ -523,7 +538,7 @@ const openEditEventDialog = (event: CalendarEvent) => {
 
                     <div class="space-y-1.5">
                         <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Description</label>
-                        <textarea v-model="eventForm.description" placeholder="Notes..." class="w-full px-3 py-2 border border-zinc-300 rounded-sm focus:border-black outline-none text-sm min-h-[80px] resize-none bg-white text-black font-medium"></textarea>
+                        <textarea v-model="eventForm.description" placeholder="Notes..." class="w-full px-3 py-2 border border-zinc-300 rounded-xl focus:border-zinc-950 outline-none text-sm min-h-[80px] resize-none bg-white text-black font-medium"></textarea>
                     </div>
 
                     <div class="flex justify-between items-center pt-2">
@@ -533,8 +548,8 @@ const openEditEventDialog = (event: CalendarEvent) => {
                         <div v-else></div>
 
                         <div class="flex gap-3">
-                             <Button type="button" variant="ghost" @click="showEventDialog = false" class="rounded-sm hover:bg-zinc-100 text-zinc-500">Annuler</Button>
-                             <Button type="submit" class="bg-black hover:bg-zinc-800 text-white rounded-sm min-w-[100px]">{{ editingEvent ? 'Mettre à jour' : 'Sauvegarder' }}</Button>
+                             <Button type="button" variant="ghost" @click="showEventDialog = false" class="rounded-xl hover:bg-zinc-100 text-zinc-500">Annuler</Button>
+                             <Button type="submit" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl min-w-[100px] shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">{{ editingEvent ? 'Mettre à jour' : 'Sauvegarder' }}</Button>
                         </div>
                     </div>
                 </form>

@@ -6,6 +6,7 @@ import documentRoutes from './routes/documents.js';
 import eventRoutes from './routes/events.js';
 import salesRoutes from './routes/sales.js';
 import userRoutes from './routes/users.js';
+import schoolRoutes from './routes/schools.js';
 
 dotenv.config();
 
@@ -24,6 +25,8 @@ app.use(cors({
         // Autoriser les requêtes sans origin (Postman, curl, etc.)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Autoriser n'importe quel port sur localhost pour le dev
+        if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return callback(null, true);
         // Autoriser tous les sous-domaines *.vercel.app en preview
         if (origin.endsWith('.vercel.app')) return callback(null, true);
         callback(new Error(`CORS bloqué pour l'origine : ${origin}`));
@@ -38,6 +41,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/schools', schoolRoutes);
 
 // Health Check
 app.get('/api/ping', (req, res) => {

@@ -2,9 +2,43 @@ import express from 'express';
 import prisma from '../db.js';
 import nodemailer from 'nodemailer';
 import multer from 'multer';
+import { ClerkExpressWithAuth } from '@clerk/clerk-sdk-node';
+import { createClerkClient } from '@clerk/clerk-sdk-node';
 
 const upload = multer();
 const router = express.Router();
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+
+// Middleware to check if the user is authenticated and is an admin (except for POST requests)
+const requireAuthOrAdmin = async (req, res, next) => {
+    try {
+        if (!req.auth || !req.auth.userId) {
+            return res.status(401).json({ error: 'Unauthenticated' });
+        }
+
+        // POST requests are allowed for any authenticated user (e.g. creating sales from invoices, sending invoices)
+        if (req.method === 'POST') {
+            return next();
+        }
+
+        // Fetch user from Clerk to verify admin status for other methods (GET, PUT, DELETE)
+        const user = await clerk.users.getUser(req.auth.userId);
+        const email = user.emailAddresses?.[0]?.emailAddress;
+        
+        const adminEmails = ['ecomaxifute@gmail.com', 'sofianelamine772@gmail.com'];
+        if (!adminEmails.includes(email)) {
+            return res.status(403).json({ error: 'Forbidden: Admin access required' });
+        }
+        
+        next();
+    } catch (err) {
+        console.error("Sales auth middleware error:", err);
+        res.status(500).json({ error: 'Authentication error' });
+    }
+};
+
+router.use(ClerkExpressWithAuth());
+router.use(requireAuthOrAdmin);
 
 // 1. GET ALL SALES (with pagination and filtering by date later)
 router.get('/', async (req, res) => {

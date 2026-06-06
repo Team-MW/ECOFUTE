@@ -7,6 +7,32 @@ dotenv.config();
 const router = express.Router();
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
+// Middleware to check if the user is a real admin
+const requireAdmin = async (req, res, next) => {
+    try {
+        if (!req.auth || !req.auth.userId) {
+            return res.status(401).json({ error: 'Unauthenticated' });
+        }
+        
+        // Fetch user from Clerk
+        const user = await clerk.users.getUser(req.auth.userId);
+        const email = user.emailAddresses?.[0]?.emailAddress;
+        
+        const adminEmails = ['ecomaxifute@gmail.com', 'sofianelamine772@gmail.com'];
+        if (!adminEmails.includes(email)) {
+            return res.status(403).json({ error: 'Forbidden: Admin access required' });
+        }
+        
+        next();
+    } catch (err) {
+        console.error("Auth middleware error:", err);
+        res.status(500).json({ error: 'Authentication error' });
+    }
+};
+
+router.use(ClerkExpressWithAuth());
+router.use(requireAdmin);
+
 // 1. LIST USERS
 router.get('/', async (req, res) => {
     try {

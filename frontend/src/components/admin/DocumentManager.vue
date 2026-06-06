@@ -5,6 +5,7 @@ import { Folder, ArrowLeft, FileText, Trash2, UploadCloud, FolderPlus, Download 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { showToast } from '@/lib/feedback'
 
 interface Document {
     id: number;
@@ -113,7 +114,7 @@ function onDrop(e: DragEvent) {
 
 async function handleFiles(files: FileList) {
     if (!props.clientId) {
-        alert("Client ID manquant. Impossible d'uploader.")
+        showToast("Client ID manquant. Impossible d'uploader.", "error")
         return
     }
     
@@ -141,7 +142,7 @@ async function handleFiles(files: FileList) {
         
     } catch (error: any) {
         console.error("Upload error details:", error)
-        alert("Erreur lors de l'upload: " + (error.response?.data?.error || error.message))
+        showToast("Erreur lors de l'upload: " + (error.response?.data?.error || error.message), "error")
     } finally {
         isUploading.value = false
     }
@@ -162,7 +163,7 @@ async function createFolder() {
             showCreateFolderDialog.value = false
         } catch (e: any) {
             console.error(e)
-            alert("Erreur création dossier: " + (e.response?.data?.error || e.message))
+            showToast("Erreur création dossier: " + (e.response?.data?.error || e.message), "error")
         }
     }
 }
@@ -206,6 +207,30 @@ async function downloadFile(url: string, name: string) {
         @dragleave="onDragLeave"
         @drop="onDrop"
     >
+        <!-- Loading overlay when uploading -->
+        <div v-if="isUploading" class="absolute inset-0 bg-white/70 backdrop-blur-md z-[100] flex flex-col items-center justify-center animate-in fade-in duration-300">
+            <div class="flex flex-col items-center max-w-sm text-center px-6">
+                <!-- Outer pulse ring -->
+                <div class="relative flex items-center justify-center mb-6">
+                    <div class="absolute w-16 h-16 rounded-full bg-zinc-900/10 animate-ping"></div>
+                    <div class="relative w-14 h-14 rounded-full bg-black flex items-center justify-center shadow-lg border border-zinc-800">
+                        <UploadCloud :size="24" class="text-white animate-bounce" />
+                    </div>
+                </div>
+                
+                <h3 class="text-lg font-bold text-zinc-900 mb-2">Téléversement en cours</h3>
+                <p class="text-sm text-zinc-500 leading-relaxed">
+                    Veuillez patienter pendant que nous traitons, convertissons et transférons votre document sur nos serveurs sécurisés.
+                </p>
+                
+                <!-- Micro spinner -->
+                <div class="mt-6 flex items-center gap-2 text-xs font-semibold text-zinc-400 uppercase tracking-widest bg-zinc-50/80 border border-zinc-200/60 px-3.5 py-1.5 rounded-full">
+                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-800 animate-pulse"></span>
+                    Traitement Cloudinary
+                </div>
+            </div>
+        </div>
+
         <!-- Overlay for Drag -->
         <div v-if="isDragging" class="absolute inset-0 bg-black/5 border-2 border-dashed border-black z-50 flex items-center justify-center backdrop-blur-sm pointer-events-none">
             <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
@@ -319,17 +344,17 @@ async function downloadFile(url: string, name: string) {
 
         <!-- Create Folder Dialog -->
         <Dialog v-model:open="showCreateFolderDialog">
-            <DialogContent class="sm:max-w-xs rounded-sm">
+            <DialogContent class="sm:max-w-xs rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200">
                 <DialogHeader>
-                    <DialogTitle>Nouveau Dossier</DialogTitle>
-                    <DialogDescription>Entrez le nom du nouveau dossier.</DialogDescription>
+                    <DialogTitle class="text-lg font-bold tracking-tight text-zinc-900">Nouveau Dossier</DialogTitle>
+                    <DialogDescription class="text-xs text-zinc-500 mt-1">Entrez le nom du nouveau dossier.</DialogDescription>
                 </DialogHeader>
                 <div class="py-4">
-                    <Input v-model="newFolderName" placeholder="Ex: Factures, Devis..." class="rounded-sm" @keyup.enter="createFolder" autoFocus />
+                    <Input v-model="newFolderName" placeholder="Ex: Factures, Devis..." class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" @keyup.enter="createFolder" autoFocus />
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" @click="showCreateFolderDialog = false" size="sm">Annuler</Button>
-                    <Button @click="createFolder" class="bg-black text-white" size="sm">Créer</Button>
+                <DialogFooter class="flex gap-2 justify-end">
+                    <Button variant="outline" @click="showCreateFolderDialog = false" size="sm" class="rounded-xl border-zinc-200/80">Annuler</Button>
+                    <Button @click="createFolder" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]" size="sm">Créer</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

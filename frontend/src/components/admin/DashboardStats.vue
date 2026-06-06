@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
+import { useUser } from '@clerk/vue'
+
+const { user } = useUser()
+const isAdmin = computed(() => {
+    if (!user.value) return false
+    const email = user.value.emailAddresses?.[0]?.emailAddress
+    return email === 'ecomaxifute@gmail.com' || email === 'sofianelamine772@gmail.com'
+})
 import {
   Chart as ChartJS,
   Title,
@@ -48,12 +56,15 @@ const showEmptyState = computed(() => !isLoading.value && sales.value.length ===
 // --- API ---
 onMounted(async () => {
     try {
-        const [salesRes, clientsRes] = await Promise.all([
-            axios.get('/api/sales'),
-            axios.get('/api/clients')
-        ])
-        sales.value = salesRes.data
-        clients.value = clientsRes.data
+        const promises: Promise<any>[] = [axios.get('/api/clients')]
+        if (isAdmin.value) {
+            promises.push(axios.get('/api/sales'))
+        }
+        const results = await Promise.all(promises)
+        clients.value = results[0].data
+        if (isAdmin.value && results[1]) {
+            sales.value = results[1].data
+        }
     } catch (error) {
         console.error("Error fetching stats data:", error)
     } finally {
@@ -300,9 +311,9 @@ const formatCurrency = (val: number) => {
         <!-- Main Dashboard Content -->
         <div v-else class="space-y-6">
             <!-- Header Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div :class="`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`">
                 <!-- Revenue Card -->
-                <div class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
+                <div v-if="isAdmin" class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Revenu Total</h3>
                         <div class="p-2 bg-green-50 rounded-full group-hover:bg-green-100 transition-colors">
@@ -355,7 +366,7 @@ const formatCurrency = (val: number) => {
             <!-- Charts Section -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Main Revenue Chart -->
-                <div class="lg:col-span-2 bg-white p-6 border border-zinc-200 shadow-sm">
+                <div v-if="isAdmin" class="lg:col-span-2 bg-white p-6 border border-zinc-200 shadow-sm">
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="font-bold text-zinc-900 flex items-center gap-2">
                             <TrendingUp :size="18" /> Évolution du Chiffre d'Affaires
@@ -368,7 +379,7 @@ const formatCurrency = (val: number) => {
                 </div>
 
                 <!-- Status Distribution -->
-                <div class="bg-white p-6 border border-zinc-200 shadow-sm flex flex-col">
+                <div :class="`bg-white p-6 border border-zinc-200 shadow-sm flex flex-col ${isAdmin ? '' : 'lg:col-span-3'}`">
                     <h3 class="font-bold text-zinc-900 mb-6 flex items-center gap-2">
                         <CheckCircle :size="18" /> Statut des Clients
                     </h3>
@@ -386,7 +397,7 @@ const formatCurrency = (val: number) => {
             </div>
 
             <!-- Sales Status Bar Chart -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div v-if="isAdmin" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-white p-6 border border-zinc-200 shadow-sm">
                     <h3 class="font-bold text-zinc-900 mb-6">État des Ventes</h3>
                     <div class="h-[200px]">

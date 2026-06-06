@@ -38,5 +38,8 @@
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vue-tsc": "^3.1.4"
+  },
+  "overrides": {
+    "entities": "6.0.0"
   }
 }

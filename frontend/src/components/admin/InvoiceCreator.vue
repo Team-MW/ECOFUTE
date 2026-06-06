@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { showToast, showConfirm } from '@/lib/feedback'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 
@@ -205,7 +206,7 @@ const downloadPDF = async () => {
         pdf.save(`Facture-${invoiceNumber.value}.pdf`)
     } catch (error) {
         console.error('PDF Generation failed', error)
-        alert("Erreur lors de la génération du PDF. Veuillez réessayer.")
+        showToast("Erreur lors de la génération du PDF. Veuillez réessayer.", "error")
     } finally {
         isGeneratingPdf.value = false
         if (!wasInPreview) isPreview.value = false // Revert if needed
@@ -214,11 +215,17 @@ const downloadPDF = async () => {
 
 const sendEmail = async () => {
     if (!clientEmail.value) {
-        alert("Veuillez renseigner l'email du client.")
+        showToast("Veuillez renseigner l'email du client.", "error")
         return
     }
 
-    if (!confirm(`Préparer l'email pour ${clientEmail.value} ?\n\nLa facture sera téléchargée et vous devrez l'ajouter en pièce jointe à l'email qui s'ouvrira.`)) return
+    const isConfirmed = await showConfirm({
+        title: 'Préparer l\'email',
+        message: `Préparer l'email pour ${clientEmail.value} ?\n\nLa facture sera téléchargée et vous devrez l'ajouter en pièce jointe à l'email qui s'ouvrira.`,
+        confirmText: 'Préparer',
+        cancelText: 'Annuler'
+    })
+    if (!isConfirmed) return
 
     isGeneratingPdf.value = true
     const wasInPreview = isPreview.value
@@ -259,7 +266,7 @@ const sendEmail = async () => {
         
     } catch (error: any) {
         console.error('PDF Generation failed', error)
-        alert("Erreur lors de la génération: " + error.message)
+        showToast("Erreur lors de la génération: " + error.message, "error")
     } finally {
         isGeneratingPdf.value = false
         if (!wasInPreview) isPreview.value = false
@@ -268,7 +275,7 @@ const sendEmail = async () => {
 
 const saveInvoice = async () => {
     if (!clientName.value && !clientBrand.value) {
-        alert("Veuillez indiquer un client (Nom ou Entreprise).")
+        showToast("Veuillez indiquer un client (Nom ou Entreprise).", "warning")
         return
     }
 
@@ -298,11 +305,11 @@ const saveInvoice = async () => {
             status: 'En attente'
         })
 
-        alert("Facture enregistrée avec succès dans le suivi des ventes !")
+        showToast("Facture enregistrée avec succès dans le suivi des ventes !", "success")
     } catch (e: any) {
         console.error(e)
         const msg = e.response?.data?.error || e.message || "Erreur inconnue"
-        alert(`Erreur lors de l'enregistrement: ${msg}`)
+        showToast(`Erreur lors de l'enregistrement: ${msg}`, "error")
     } finally {
         isSaving.value = false
     }
@@ -332,319 +339,340 @@ onMounted(fetchClients)
 </script>
 
 <template>
-    <div class="max-w-7xl mx-auto bg-gray-50 min-h-screen pb-20 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div class="max-w-7xl mx-auto bg-gray-50 min-h-screen pb-20 p-4 md:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         <!-- Header Actions -->
         <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Éditeur de Facture</h1>
-                <p class="text-sm text-gray-500 mt-1">Créez, personnalisez et imprimez vos factures simplement.</p>
+                <p class="text-sm text-gray-500 mt-1">Générez des factures professionnelles et suivez vos ventes en temps réel.</p>
             </div>
             <div class="flex flex-wrap gap-3">
-                <div class="relative">
-                    <select 
-                        v-model="selectedClientId" 
-                        @change="handleClientSelect"
-                        class="h-10 pl-3 pr-8 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-black appearance-none truncate min-w-[200px]"
-                    >
-                        <option value="" disabled selected>Sélectionner un client...</option>
-                        <option v-for="client in clients" :key="client.id" :value="client.id.toString()">
-                            {{ client.company ? `${client.company} (${client.firstName} ${client.lastName})` : `${client.firstName} ${client.lastName}` }}
-                        </option>
-                    </select>
-                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-500">
-                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                </div>
-                 <Button @click="togglePreview" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
-                    <Edit3 v-if="isPreview" :size="16" class="mr-2" />
-                    <Eye v-else :size="16" class="mr-2" />
-                    {{ isPreview ? 'Mode Édition' : 'Mode Aperçu' }}
+                <Button @click="showSettingsDialog = true" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl">
+                    <Settings :size="16" class="mr-2" /> Paramètres Entreprise
                 </Button>
-                <Button @click="showSettingsDialog = true" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
-                    <Settings :size="16" class="mr-2" /> Configuration
-                </Button>
-                 <Button @click="saveInvoice" :disabled="isSaving" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
+                <Button @click="saveInvoice" :disabled="isSaving" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl">
                     <Loader v-if="isSaving" class="animate-spin mr-2" :size="16" />
-                    <Save v-else :size="16" class="mr-2" /> Sauvegarder
+                    <Save v-else :size="16" class="mr-2" /> Sauvegarder Vente
                 </Button>
-                <Button @click="downloadPDF" :disabled="isGeneratingPdf" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
+                <Button @click="downloadPDF" :disabled="isGeneratingPdf" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl">
                     <Loader v-if="isGeneratingPdf" class="animate-spin mr-2" :size="16" />
                     <Download v-else :size="16" class="mr-2" /> Télécharger PDF
                 </Button>
-                <Button @click="sendEmail" :disabled="isGeneratingPdf" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
+                <Button @click="sendEmail" :disabled="isGeneratingPdf" variant="outline" class="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl">
                     <Loader v-if="isGeneratingPdf" class="animate-spin mr-2" :size="16" />
-                    <Mail v-else :size="16" class="mr-2" /> Envoyer Email
+                    <Mail v-else :size="16" class="mr-2" /> Envoyer par Email
                 </Button>
             </div>
         </div>
 
-        <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            <!-- Left Side: Invoice Paper -->
-            <div class="flex-1 w-full overflow-auto">
-                <div id="invoice-preview" class="bg-white shadow-lg mx-auto print:shadow-none print:mx-0 print:w-full max-w-[210mm] min-h-[297mm] p-[10mm] md:p-[15mm] relative text-sm leading-relaxed text-gray-700" :class="{'select-none cursor-default': isPreview}">
-                    
-                    <!-- Top Section: Logo & Company Address vs Invoice Info -->
-                    <div class="flex justify-between items-start mb-12">
-                        <!-- Left: Company Info -->
-                        <div class="w-1/2 pr-8">
-                            <div class="mb-6">
-                                <div v-if="companyDetails.logoUrl" class="h-32 mb-4 flex items-center justify-start">
-                                    <img :src="companyDetails.logoUrl" alt="Logo" class="h-full w-auto object-contain" />
-                                </div>
-                                <div v-else class="h-16 w-16 bg-gray-900 text-white flex items-center justify-center font-bold text-2xl rounded-lg mb-4" :style="{ backgroundColor: companyDetails.accentColor }">
-                                    {{ companyDetails.name.substring(0, 2).toUpperCase() }}
-                                </div>
-                                <div v-if="!isPreview">
-                                    <Input v-model="companyDetails.name" class="text-xl font-bold text-gray-900 border-none px-0 h-auto focus:ring-0 p-0 w-full mb-1 bg-transparent hover:bg-gray-50 transition-colors" />
-                                </div>
-                                <div v-else class="text-xl font-bold text-gray-900 mb-1 py-1">
-                                    {{ companyDetails.name }}
-                                </div>
-                            </div>
-                            <div class="text-xs text-gray-500 space-y-1">
-                                <template v-if="!isPreview">
-                                    <Input v-model="companyDetails.address1" class="border-none px-0 h-5 text-gray-500 focus:ring-0 p-0 text-xs w-full bg-transparent hover:bg-gray-50" placeholder="Adresse" />
-                                    <Input v-model="companyDetails.address2" class="border-none px-0 h-5 text-gray-500 focus:ring-0 p-0 text-xs w-full bg-transparent hover:bg-gray-50" placeholder="Code Postal, Ville" />
-                                    <Input v-model="companyDetails.email" class="border-none px-0 h-5 text-gray-500 focus:ring-0 p-0 text-xs w-full bg-transparent hover:bg-gray-50" placeholder="Email" />
-                                    <Input v-model="companyDetails.phone" class="border-none px-0 h-5 text-gray-500 focus:ring-0 p-0 text-xs w-full bg-transparent hover:bg-gray-50" placeholder="Téléphone" />
-                                    <div class="flex gap-1 mt-2">
-                                        <span>SIRET:</span>
-                                        <Input v-model="companyDetails.siret" class="border-none px-0 h-4 text-gray-500 focus:ring-0 p-0 text-xs w-32 inline-block bg-transparent hover:bg-gray-50" />
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <p class="h-5 flex items-center">{{ companyDetails.address1 }}</p>
-                                    <p class="h-5 flex items-center">{{ companyDetails.address2 }}</p>
-                                    <p class="h-5 flex items-center">{{ companyDetails.email }}</p>
-                                    <p class="h-5 flex items-center">{{ companyDetails.phone }}</p>
-                                    <div class="flex gap-1 mt-2">
-                                        <span>SIRET:</span>
-                                        <span>{{ companyDetails.siret }}</span>
-                                    </div>
-                                </template>
-                            </div>
+            <!-- Left Panel: The step-by-step form (5 cols) -->
+            <div class="lg:col-span-5 space-y-6 print:hidden">
+                <!-- Section 1: Références de facture -->
+                <div class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4">
+                    <h3 class="text-sm font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">1. Références de Facture</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5 col-span-2">
+                            <Label class="text-xs text-zinc-500 font-semibold">Numéro de Facture</Label>
+                            <Input v-model="invoiceNumber" class="rounded-xl border-zinc-200" />
                         </div>
-
-                        <!-- Right: Invoice Title & Meta -->
-                        <div class="w-1/2 text-right">
-                            <h2 class="text-4xl font-light text-gray-200 uppercase tracking-widest mb-6 select-none">Facture</h2>
-                            <div class="flex flex-col items-end gap-1">
-                                <div class="flex items-center justify-end gap-3 h-8">
-                                    <span class="text-xs font-semibold uppercase text-gray-400">N° Facture</span>
-                                    <Input v-if="!isPreview" v-model="invoiceNumber" class="w-32 text-right font-mono font-bold text-gray-900 border-none bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-2 h-7" />
-                                    <span v-else class="w-32 text-right font-mono font-bold text-gray-900 px-2 py-1">{{ invoiceNumber }}</span>
-                                </div>
-                                <div class="flex items-center justify-end gap-3 h-8">
-                                    <span class="text-xs font-semibold uppercase text-gray-400">Date</span>
-                                    <Input v-if="!isPreview" type="date" v-model="invoiceDate" class="w-32 text-right text-gray-900 border-none bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-2 h-7" />
-                                    <span v-else class="w-32 text-right text-gray-900 px-2 py-1">{{ invoiceDate ? formatDate(invoiceDate) : '' }}</span>
-                                </div>
-                                <div class="flex items-center justify-end gap-3 h-8">
-                                    <span class="text-xs font-semibold uppercase text-gray-400">Échéance</span>
-                                    <Input v-if="!isPreview" type="date" v-model="dueDate" class="w-32 text-right text-gray-900 border-none bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-2 h-7" />
-                                    <span v-else class="w-32 text-right text-gray-900 px-2 py-1">{{ dueDate ? formatDate(dueDate) : '' }}</span>
-                                </div>
-                            </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs text-zinc-500 font-semibold">Date de Facture</Label>
+                            <Input type="date" v-model="invoiceDate" class="rounded-xl border-zinc-200" />
                         </div>
-                    </div>
-
-                    <!-- Client Section -->
-                    <div class="mb-12 flex flex-col md:flex-row gap-8">
-                        <div class="w-full bg-gray-50/30 p-6 rounded-lg border border-gray-100 print:bg-transparent print:p-0 print:border-none print:ml-auto print:w-1/2" :class="{'bg-transparent border-none p-0': isPreview}">
-                            <h3 class="text-xs font-bold uppercase tracking-widest text-blue-600 mb-4 print:text-gray-400" :style="{ color: companyDetails.accentColor }">Facturé à</h3>
-                            
-                            <div class="space-y-1">
-                                <template v-if="!isPreview">
-                                    <Input v-model="clientBrand" placeholder="Nom de l'entreprise (Optionnel)" class="text-lg font-bold text-gray-900 border-none px-0 h-8 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
-                                    <div class="flex gap-2">
-                                        <Input v-model="clientName" placeholder="Nom du contact / client" class="text-base text-gray-800 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
-                                    </div>
-                                    <Input v-model="clientAddress" placeholder="Adresse complète (Rue, CP, Ville)" class="text-sm text-gray-600 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
-                                    <Input v-model="clientEmail" placeholder="Email (pour l'envoi)" class="text-sm text-gray-500 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
-                                    <Input v-model="clientPhone" placeholder="Téléphone" class="text-sm text-gray-500 border-none px-0 h-6 focus:ring-0 bg-transparent placeholder:text-gray-300 w-full hover:bg-gray-50" />
-                                    <div class="flex gap-4 mt-2">
-                                        <Input v-model="clientSiret" placeholder="SIRET Client" class="text-xs text-gray-400 border-none px-0 h-5 focus:ring-0 bg-transparent placeholder:text-gray-300 w-32 hover:bg-gray-50" />
-                                        <Input v-model="clientTva" placeholder="N° TVA Client" class="text-xs text-gray-400 border-none px-0 h-5 focus:ring-0 bg-transparent placeholder:text-gray-300 w-32 hover:bg-gray-50" />
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <div v-if="clientBrand" class="text-lg font-bold text-gray-900 h-8 flex items-center">{{ clientBrand }}</div>
-                                    <div v-if="clientName" class="text-base text-gray-800 h-6 flex items-center">{{ clientName }}</div>
-                                    <div v-if="clientAddress" class="text-sm text-gray-600 h-6 flex items-center">{{ clientAddress }}</div>
-                                    <div v-if="clientEmail" class="text-sm text-gray-500 h-6 flex items-center">{{ clientEmail }}</div>
-                                    <div v-if="clientPhone" class="text-sm text-gray-500 h-6 flex items-center">{{ clientPhone }}</div>
-                                    <div class="flex gap-4 mt-1 text-xs text-gray-400" v-if="clientSiret || clientTva">
-                                        <span v-if="clientSiret">SIRET: {{ clientSiret }}</span>
-                                        <span v-if="clientTva">TVA: {{ clientTva }}</span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Items Table -->
-                    <div class="mb-8">
-                        <table class="w-full text-left border-collapse table-fixed">
-                            <thead>
-                                <tr class="border-b-2 border-gray-900" :style="{ borderColor: companyDetails.accentColor }">
-                                    <th class="py-3 px-2 text-xs font-bold uppercase tracking-widest text-gray-900 w-[50%]">Désignation</th>
-                                    <th class="py-3 px-2 text-xs font-bold uppercase tracking-widest text-gray-900 text-center w-[15%]">Quantité</th>
-                                    <th class="py-3 px-2 text-xs font-bold uppercase tracking-widest text-gray-900 text-right w-[15%]">Prix Unit.</th>
-                                    <th class="py-3 px-2 text-xs font-bold uppercase tracking-widest text-gray-900 text-right w-[20%]">Total</th>
-                                    <th v-if="!isPreview" class="py-3 w-8 print:hidden"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="">
-                                <tr v-for="item in items" :key="item.id" class="group border-b border-gray-100 transition-colors print:hover:bg-transparent" :class="{'hover:bg-gray-50': !isPreview}">
-                                    <td class="py-2 px-2 align-top">
-                                        <Textarea v-if="!isPreview" v-model="item.description" placeholder="Description du produit ou service" class="resize-none min-h-[40px] border-none focus:ring-0 bg-transparent p-0 text-sm text-gray-700 placeholder:text-gray-300 w-full" rows="1" @input="(e:any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }" />
-                                        <p v-else class="text-sm text-gray-700 py-2 whitespace-pre-wrap break-words">{{ item.description }}</p>
-                                    </td>
-                                    <td class="py-3 px-2 align-top text-center text-sm text-gray-700">
-                                        <Input v-if="!isPreview" type="number" v-model="item.quantity" min="1" class="text-center border-none focus:ring-0 bg-transparent p-0 text-sm text-gray-700 h-full w-full" />
-                                        <span v-else>{{ item.quantity }}</span>
-                                    </td>
-                                    <td class="py-3 px-2 align-top text-right text-sm text-gray-700">
-                                        <div v-if="!isPreview" class="relative">
-                                            <Input type="number" v-model="item.price" min="0" step="0.01" class="text-right border-none focus:ring-0 bg-transparent p-0 text-sm text-gray-700 h-full w-full pr-6" />
-                                            <span class="absolute right-0 top-0 text-gray-400 text-xs">€</span>
-                                        </div>
-                                        <span v-else>{{ formatCurrency(item.price) }}</span>
-                                    </td>
-                                    <td class="py-3 px-2 text-right font-mono text-gray-900 font-medium align-top">
-                                        <div v-if="!isPreview" class="relative">
-                                            <Input type="number" :value="item.quantity * item.price" @input="(e: any) => updateItemTotal(item, e.target.value)" class="text-right border-none focus:ring-0 bg-transparent p-0 text-sm text-gray-900 font-medium h-full w-full pr-6" />
-                                            <span class="absolute right-0 top-0 text-gray-400 text-xs">€</span>
-                                        </div>
-                                        <span v-else>{{ formatCurrency(item.quantity * item.price) }}</span>
-                                    </td>
-                                    <td v-if="!isPreview" class="py-3 text-center print:hidden align-top">
-                                        <button v-if="items.length > 1" @click="removeItem(item.id)" class="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                                            <Trash2 :size="14" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <Button v-if="!isPreview" @click="addItem" variant="ghost" size="sm" class="mt-4 text-gray-500 hover:text-gray-900 border border-dashed border-gray-300 w-full hover:bg-gray-50 print:hidden">
-                            <Plus :size="14" class="mr-2" /> Ajouter une ligne
-                        </Button>
-                    </div>
-
-                    <!-- Footer / Totals -->
-                    <div class="flex flex-col md:flex-row justify-between items-start gap-12 mb-12">
-                        <!-- Payment Info / Notes -->
-                        <div class="flex-1 text-xs text-gray-500 space-y-4">
-                            <div class="p-4 bg-gray-50 rounded border border-gray-100 print:bg-transparent print:border-none print:p-0" :class="{'bg-transparent border-none p-0': isPreview}">
-                                <Label class="text-[10px] font-bold uppercase text-gray-400 mb-2 block">Informations de paiement</Label>
-                                <div class="space-y-1">
-                                    <div class="flex gap-2" v-if="companyDetails.iban">
-                                        <span class="font-semibold w-8">IBAN:</span>
-                                        <span class="font-mono select-all">{{ companyDetails.iban }}</span>
-                                    </div>
-                                    <div class="flex gap-2" v-if="companyDetails.bic">
-                                        <span class="font-semibold w-8">BIC:</span>
-                                        <span class="font-mono select-all">{{ companyDetails.bic }}</span>
-                                    </div>
-                                    <div class="flex gap-2" v-if="!companyDetails.iban && !isPreview">
-                                        <span class="italic text-gray-400">Ajoutez votre IBAN dans les paramètres.</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <Label class="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Notes / Conditions</Label>
-                                <Textarea v-if="!isPreview" v-model="companyDetails.notes" class="w-full text-xs text-gray-500 bg-transparent border-none focus:ring-0 p-0 resize-none" rows="3" />
-                                <p v-else class="text-xs text-gray-500 whitespace-pre-wrap">{{ companyDetails.notes }}</p>
-                            </div>
-                        </div>
-
-                        <!-- Totals -->
-                        <div class="w-full md:w-1/3 space-y-3">
-                            <div v-if="companyDetails.vatEnabled" class="flex justify-between text-sm text-gray-600">
-                                <span>Sous-total HT</span>
-                                <span class="font-mono font-medium">{{ formatCurrency(subtotal) }}</span>
-                            </div>
-                            <div class="flex justify-between text-sm text-gray-600 items-center">
-                                <div class="flex items-center gap-2">
-                                     <input v-if="!isPreview" type="checkbox" v-model="companyDetails.vatEnabled" id="vat-toggle" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3 h-3" />
-                                     <label v-if="!isPreview" for="vat-toggle" class="cursor-pointer select-none">TVA (20%)</label>
-                                     <span v-else-if="companyDetails.vatEnabled">TVA (20%)</span>
-                                </div>
-                                <span v-if="companyDetails.vatEnabled" class="font-mono font-medium">{{ formatCurrency(taxAmount) }}</span>
-                            </div>
-                            <div class="h-px bg-gray-200 my-2"></div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-base font-bold text-gray-900">Total {{ companyDetails.vatEnabled ? 'TTC' : '' }}</span>
-                                <span class="text-xl font-bold font-mono tracking-tight" :style="{ color: companyDetails.accentColor }">{{ formatCurrency(total) }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bottom Footer -->
-                    <div class="absolute bottom-[10mm] left-[10mm] right-[10mm] text-center border-t border-gray-200 pt-4">
-                        <div class="flex justify-center gap-4 text-[10px] text-gray-400 uppercase tracking-widest">
-                            <span>{{ companyDetails.name }}</span>
-                            <span>•</span>
-                            <span>SIRET: {{ companyDetails.siret }}</span>
-                            <span v-if="companyDetails.tvaNumber">•</span>
-                            <span v-if="companyDetails.tvaNumber">TVA: {{ companyDetails.tvaNumber }}</span>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs text-zinc-500 font-semibold">Date d'Échéance</Label>
+                            <Input type="date" v-model="dueDate" class="rounded-xl border-zinc-200" />
                         </div>
                     </div>
                 </div>
-            </div>
-            
-             <!-- Right Side: Utils / Client Selector (Print Hidden) -->
-            <div class="w-full lg:w-80 print:hidden space-y-6">
-                 <!-- Client Selection Helper -->
-                <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                    <Label class="text-xs font-bold uppercase text-gray-900 mb-4 block flex items-center gap-2">
-                        <Search :size="12" /> Pré-remplissage Client
-                    </Label>
-                    
+
+                <!-- Section 2: Destinataire / Client -->
+                <div class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4">
+                    <h3 class="text-sm font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">2. Destinataire (Client)</h3>
                     <div class="space-y-4">
-                        <p class="text-xs text-gray-500">
-                            Sélectionnez un client existant pour remplir automatiquement les informations de facturation.
-                        </p>
-                         <div class="relative">
+                        <div class="space-y-1.5">
+                            <Label class="text-xs text-zinc-500 font-semibold">Pré-remplir depuis un client existant</Label>
                             <select 
                                 v-model="selectedClientId" 
                                 @change="handleClientSelect"
-                                class="w-full p-2.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent bg-gray-50 appearance-none"
+                                class="w-full p-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-950 bg-white"
                             >
-                                <option value="" disabled>Choisir dans la liste...</option>
-                                <option v-for="client in clients" :key="client.id" :value="client.id">
-                                    {{ client.company ? client.company : client.firstName + ' ' + client.lastName }}
+                                <option value="">-- Saisir manuellement --</option>
+                                <option v-for="client in clients" :key="client.id" :value="client.id.toString()">
+                                    {{ client.company ? `${client.company} (${client.firstName} ${client.lastName})` : `${client.firstName} ${client.lastName}` }}
                                 </option>
                             </select>
                         </div>
                         
-                        <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded border border-blue-100">
-                            <strong>Note :</strong> Vous n'êtes pas obligé de sélectionner un client. Vous pouvez remplir les champs manuellement sur la facture directement.
+                        <div class="h-px bg-zinc-100"></div>
+
+                        <div class="space-y-3">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs text-zinc-500 font-semibold">Nom de l'entreprise (Optionnel)</Label>
+                                <Input v-model="clientBrand" placeholder="Ex: Entreprise SAS" class="rounded-xl border-zinc-200" />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs text-zinc-500 font-semibold">Nom complet du client</Label>
+                                <Input v-model="clientName" placeholder="Ex: Jean Dupont" class="rounded-xl border-zinc-200" />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs text-zinc-500 font-semibold">Adresse complète</Label>
+                                <Input v-model="clientAddress" placeholder="Ex: 10 Rue de la Paix, 75002 Paris" class="rounded-xl border-zinc-200" />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs text-zinc-500 font-semibold">Email professionnel</Label>
+                                <Input v-model="clientEmail" placeholder="client@exemple.com" class="rounded-xl border-zinc-200" />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs text-zinc-500 font-semibold">Téléphone</Label>
+                                <Input v-model="clientPhone" placeholder="Ex: 06 12 34 56 78" class="rounded-xl border-zinc-200" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-zinc-500 font-semibold">SIRET Client</Label>
+                                    <Input v-model="clientSiret" placeholder="123 456 789 00012" class="rounded-xl border-zinc-200" />
+                                </div>
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-zinc-500 font-semibold">N° TVA Client</Label>
+                                    <Input v-model="clientTva" placeholder="FR 12 345678900" class="rounded-xl border-zinc-200" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Quick Actions / Tips -->
-                 <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                    <Label class="text-xs font-bold uppercase text-gray-900 mb-4 block">Astuces</Label>
-                    <ul class="text-xs text-gray-500 space-y-2 list-disc list-inside">
-                         <li>Utilisez le bouton <strong>"Mode Aperçu"</strong> pour voir le rendu final exact.</li>
-                        <li>Les champs vides (comme l'adresse) seront masqués sur le PDF final.</li>
-                        <li>Vous pouvez éditer tous les textes directement.</li>
-                    </ul>
+                <!-- Section 3: Prestations & Tarifs -->
+                <div class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4">
+                    <h3 class="text-sm font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">3. Prestations & Tarifs</h3>
+                    <div class="space-y-4">
+                        <div v-for="(item, idx) in items" :key="item.id" class="p-4 border border-zinc-200 rounded-xl bg-zinc-50/50 space-y-3 relative group">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-zinc-400">Ligne #{{ idx + 1 }}</span>
+                                <Button 
+                                    v-if="items.length > 1" 
+                                    @click="removeItem(item.id)" 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    class="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                >
+                                    <Trash2 :size="14" />
+                                </Button>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs text-zinc-500 font-semibold">Désignation / Description</Label>
+                                <Textarea v-model="item.description" placeholder="Description de la prestation..." class="rounded-xl border-zinc-200 bg-white min-h-[60px]" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-zinc-500 font-semibold">Quantité</Label>
+                                    <Input type="number" v-model="item.quantity" min="1" class="rounded-xl border-zinc-200 bg-white" />
+                                </div>
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs text-zinc-500 font-semibold">Prix Unit. HT (€)</Label>
+                                    <div class="relative">
+                                        <Input type="number" v-model="item.price" min="0" step="0.01" class="rounded-xl border-zinc-200 bg-white pr-6" />
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-bold">€</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <Button @click="addItem" variant="outline" class="w-full h-10 border-dashed border-zinc-300 hover:border-zinc-500 text-zinc-600 hover:bg-zinc-50 rounded-xl">
+                            <Plus :size="14" class="mr-2" /> Ajouter une prestation
+                        </Button>
+                    </div>
+                </div>
+
+                <!-- Section 4: Conditions & Règlements -->
+                <div class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4">
+                    <h3 class="text-sm font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">4. Règlement & Conditions</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 py-1">
+                            <input type="checkbox" v-model="companyDetails.vatEnabled" id="form-vat-toggle" class="rounded border-zinc-300 text-zinc-950 focus:ring-zinc-950 w-4 h-4" />
+                            <Label for="form-vat-toggle" class="cursor-pointer font-bold text-zinc-700 text-xs uppercase tracking-wide">Activer la TVA (20%)</Label>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs text-zinc-500 font-semibold">IBAN</Label>
+                            <Input v-model="companyDetails.iban" placeholder="FR76 ..." class="rounded-xl border-zinc-200 font-mono" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs text-zinc-500 font-semibold">BIC / SWIFT</Label>
+                            <Input v-model="companyDetails.bic" placeholder="XXXXXX" class="rounded-xl border-zinc-200 font-mono" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs text-zinc-500 font-semibold">Notes / Conditions de règlement</Label>
+                            <Textarea v-model="companyDetails.notes" class="rounded-xl border-zinc-200 min-h-[80px]" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Real-time Live A4 Preview (7 cols) -->
+            <div class="lg:col-span-7 sticky top-6 w-full overflow-auto">
+                <div class="flex items-center justify-between mb-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl shadow-sm print:hidden">
+                    <span class="text-xs font-bold uppercase tracking-wider flex items-center gap-2 select-none">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                        Aperçu en temps réel
+                    </span>
+                    <span class="text-xs text-zinc-400 font-mono select-none">{{ invoiceNumber }}</span>
+                </div>
+
+                <div class="border border-zinc-200 shadow-2xl rounded-2xl overflow-hidden bg-white max-w-full">
+                    <div id="invoice-preview" class="bg-white mx-auto print:shadow-none print:mx-0 print:w-full max-w-[210mm] min-h-[297mm] p-[10mm] md:p-[15mm] relative text-sm leading-relaxed text-zinc-700">
+                        
+                        <!-- Top Banner / Accent Line -->
+                        <div class="absolute top-0 left-0 right-0 h-2" :style="{ backgroundColor: companyDetails.accentColor }"></div>
+                        
+                        <!-- Top Section: Logo & Company Address vs Invoice Info -->
+                        <div class="flex justify-between items-start mb-12 mt-4">
+                            <!-- Left: Company Info -->
+                            <div class="w-1/2 pr-8">
+                                <div class="mb-4">
+                                    <div v-if="companyDetails.logoUrl" class="h-20 mb-3 flex items-center justify-start">
+                                        <img :src="companyDetails.logoUrl" alt="Logo" class="h-full w-auto object-contain" />
+                                    </div>
+                                    <div v-else class="h-12 w-12 bg-zinc-900 text-white flex items-center justify-center font-bold text-xl rounded-xl mb-3" :style="{ backgroundColor: companyDetails.accentColor }">
+                                        {{ companyDetails.name.substring(0, 2).toUpperCase() }}
+                                    </div>
+                                    <h3 class="text-lg font-bold text-zinc-950">{{ companyDetails.name }}</h3>
+                                </div>
+                                <div class="text-xs text-zinc-500 space-y-0.5">
+                                    <p>{{ companyDetails.address1 }}</p>
+                                    <p>{{ companyDetails.address2 }}</p>
+                                    <p>{{ companyDetails.email }}</p>
+                                    <p>{{ companyDetails.phone }}</p>
+                                    <p class="pt-1.5 font-semibold text-zinc-600">SIRET: {{ companyDetails.siret }}</p>
+                                    <p v-if="companyDetails.tvaNumber" class="text-zinc-600">TVA: {{ companyDetails.tvaNumber }}</p>
+                                </div>
+                            </div>
+
+                            <!-- Right: Invoice Title & Meta -->
+                            <div class="w-1/2 text-right">
+                                <h2 class="text-4xl font-extrabold text-zinc-900 uppercase tracking-tight mb-6 select-none">Facture</h2>
+                                <div class="text-xs space-y-1">
+                                    <p class="flex justify-end gap-3"><span class="text-zinc-400 uppercase font-bold">N° Facture:</span> <span class="font-mono font-bold text-zinc-900">{{ invoiceNumber }}</span></p>
+                                    <p class="flex justify-end gap-3"><span class="text-zinc-400 uppercase font-bold">Date:</span> <span class="text-zinc-900 font-medium">{{ invoiceDate ? formatDate(invoiceDate) : '' }}</span></p>
+                                    <p class="flex justify-end gap-3"><span class="text-zinc-400 uppercase font-bold">Échéance:</span> <span class="text-zinc-900 font-medium">{{ dueDate ? formatDate(dueDate) : '' }}</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Client Section -->
+                        <div class="mb-12">
+                            <div class="w-2/3 border-t border-zinc-100 pt-6">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 select-none">Facturé à</h4>
+                                <div class="space-y-0.5">
+                                    <div v-if="clientBrand" class="text-base font-extrabold text-zinc-950">{{ clientBrand }}</div>
+                                    <div v-if="clientName" class="text-sm font-semibold text-zinc-800">{{ clientName }}</div>
+                                    <div v-if="clientAddress" class="text-xs text-zinc-500">{{ clientAddress }}</div>
+                                    <div v-if="clientEmail" class="text-xs text-zinc-400 font-mono">{{ clientEmail }}</div>
+                                    <div v-if="clientPhone" class="text-xs text-zinc-400">{{ clientPhone }}</div>
+                                    <div class="flex gap-4 mt-2 text-[10px] text-zinc-400 font-semibold" v-if="clientSiret || clientTva">
+                                        <span v-if="clientSiret">SIRET: {{ clientSiret }}</span>
+                                        <span v-if="clientTva">TVA: {{ clientTva }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Items Table -->
+                        <div class="mb-12">
+                            <table class="w-full text-left border-collapse table-fixed font-sans">
+                                <thead>
+                                    <tr class="border-b-2 border-zinc-900" :style="{ borderColor: companyDetails.accentColor }">
+                                        <th class="py-2.5 px-2 text-xs font-bold uppercase tracking-wider text-zinc-900 w-[55%] select-none">Désignation</th>
+                                        <th class="py-2.5 px-2 text-xs font-bold uppercase tracking-wider text-zinc-900 text-center w-[15%] select-none">Quantité</th>
+                                        <th class="py-2.5 px-2 text-xs font-bold uppercase tracking-wider text-zinc-900 text-right w-[15%] select-none">Prix Unit. HT</th>
+                                        <th class="py-2.5 px-2 text-xs font-bold uppercase tracking-wider text-zinc-900 text-right w-[15%] select-none">Total HT</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="item in items" :key="item.id" class="border-b border-zinc-100">
+                                        <td class="py-3 px-2 align-top">
+                                            <p class="text-xs text-zinc-800 whitespace-pre-wrap break-words font-medium">{{ item.description || 'Prestation de service' }}</p>
+                                        </td>
+                                        <td class="py-3 px-2 align-top text-center text-xs text-zinc-600 font-semibold">
+                                            {{ item.quantity }}
+                                        </td>
+                                        <td class="py-3 px-2 align-top text-right text-xs text-zinc-600 font-mono">
+                                            {{ formatCurrency(item.price) }}
+                                        </td>
+                                        <td class="py-3 px-2 text-right font-mono text-zinc-950 font-bold align-top text-xs">
+                                            {{ formatCurrency(item.quantity * item.price) }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Footer / Totals -->
+                        <div class="flex flex-col md:flex-row justify-between items-start gap-12 mb-12">
+                            <!-- Payment Info / Notes -->
+                            <div class="flex-1 text-xs text-zinc-400 space-y-4">
+                                <div v-if="companyDetails.iban || companyDetails.bic" class="p-4 bg-zinc-50 border border-zinc-100 rounded-xl">
+                                    <span class="text-[10px] font-bold uppercase text-zinc-400 mb-2 block select-none">Règlement bancaire</span>
+                                    <div class="space-y-1 font-mono text-[11px] text-zinc-600">
+                                        <div v-if="companyDetails.iban" class="flex gap-2">
+                                            <span class="font-bold text-zinc-400 w-8">IBAN:</span>
+                                            <span>{{ companyDetails.iban }}</span>
+                                        </div>
+                                        <div v-if="companyDetails.bic" class="flex gap-2">
+                                            <span class="font-bold text-zinc-400 w-8">BIC:</span>
+                                            <span>{{ companyDetails.bic }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="companyDetails.notes">
+                                    <span class="text-[10px] font-bold uppercase text-zinc-400 mb-1.5 block select-none">Notes & Conditions</span>
+                                    <p class="text-xs text-zinc-500 whitespace-pre-wrap leading-relaxed">{{ companyDetails.notes }}</p>
+                                </div>
+                            </div>
+
+                            <!-- Totals -->
+                            <div class="w-full md:w-1/3 space-y-2.5 text-zinc-700">
+                                <div class="space-y-2.5">
+                                    <div v-if="companyDetails.vatEnabled" class="flex justify-between text-xs font-semibold">
+                                        <span class="select-none text-zinc-500">Sous-total HT</span>
+                                        <span class="font-mono">{{ formatCurrency(subtotal) }}</span>
+                                    </div>
+                                    <div v-if="companyDetails.vatEnabled" class="flex justify-between text-xs font-semibold">
+                                        <span class="select-none text-zinc-500">TVA (20%)</span>
+                                        <span class="font-mono">{{ formatCurrency(taxAmount) }}</span>
+                                    </div>
+                                </div>
+                                <div class="h-px bg-zinc-200 my-1"></div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-bold text-zinc-950 select-none">Total {{ companyDetails.vatEnabled ? 'TTC' : 'HT' }}</span>
+                                    <span class="text-lg font-black font-mono tracking-tight" :style="{ color: companyDetails.accentColor }">{{ formatCurrency(total) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Footer -->
+                        <div class="absolute bottom-10 left-10 right-10 text-center border-t border-zinc-100 pt-4">
+                            <div class="flex justify-center gap-4 text-[9px] text-zinc-400 font-bold uppercase tracking-wider select-none">
+                                <span>{{ companyDetails.name }}</span>
+                                <span>•</span>
+                                <span>SIRET: {{ companyDetails.siret }}</span>
+                                <span v-if="companyDetails.tvaNumber">•</span>
+                                <span v-if="companyDetails.tvaNumber">TVA: {{ companyDetails.tvaNumber }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Configuration Dialog -->
         <Dialog v-model:open="showSettingsDialog">
-            <DialogContent class="sm:max-w-2xl bg-white border border-gray-200 shadow-xl text-gray-900 max-h-[90vh] overflow-y-auto">
+            <DialogContent class="sm:max-w-2xl rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-200 text-zinc-900 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle class="text-xl font-bold">Paramètres de l'entreprise</DialogTitle>
                     <DialogDescription class="text-gray-500">
-                        Configurez vos informations légales et bancaires pour vos factures.
+                        Configurez vos coordonnées d'entreprise pour l'en-tête de vos factures.
                     </DialogDescription>
                 </DialogHeader>
                 
@@ -656,13 +684,13 @@ onMounted(fetchClients)
                             <div class="space-y-2">
                                 <Label class="text-xs font-semibold text-gray-500">Logo</Label>
                                 <div class="flex items-center gap-4">
-                                    <div v-if="companyDetails.logoUrl" class="w-20 h-20 border border-gray-200 rounded p-1 bg-white relative group">
+                                    <div v-if="companyDetails.logoUrl" class="w-20 h-20 border border-gray-200 rounded-xl p-1 bg-white relative group">
                                         <img :src="companyDetails.logoUrl" class="w-full h-full object-contain" />
                                         <button @click="companyDetails.logoUrl = ''" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Trash2 :size="12" />
                                         </button>
                                     </div>
-                                    <div v-else class="w-20 h-20 border border-gray-300 border-dashed rounded flex items-center justify-center bg-gray-50 text-gray-400">
+                                    <div v-else class="w-20 h-20 border border-gray-300 border-dashed rounded-xl flex items-center justify-center bg-gray-50 text-gray-400">
                                         <ImageIcon :size="24" />
                                     </div>
                                     <div>
@@ -717,7 +745,7 @@ onMounted(fetchClients)
 
                     <!-- Bank -->
                     <div class="space-y-4">
-                         <Label class="text-sm font-bold text-gray-900 border-b pb-1 block">Informations Bancaires</Label>
+                         <Label class="text-sm font-bold text-gray-900 border-b pb-1 block">Informations Bancaires par défaut</Label>
                          <div class="grid grid-cols-1 gap-4">
                             <div>
                                 <Label class="text-xs text-gray-500">IBAN</Label>
@@ -731,8 +759,8 @@ onMounted(fetchClients)
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button @click="showSettingsDialog = false" class="bg-gray-900 text-white hover:bg-black">
+                <DialogFooter class="mt-6 flex justify-end gap-3">
+                    <Button @click="showSettingsDialog = false" class="bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                         Valider les modifications
                     </Button>
                 </DialogFooter>
