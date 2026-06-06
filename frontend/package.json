@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/localizations": "^4.7.1",
     "@clerk/vue": "^1.17.12",
     "@radix-icons/vue": "^1.0.0",
     "@vueuse/core": "^14.2.1",

@@ -361,10 +361,48 @@ const openEditEventDialog = (event: CalendarEvent) => {
     }
     showEventDialog.value = true
 }
+
+const getMemberWeeklyStats = (memberId: string | null) => {
+    const start = currentWeekStart.value
+    const end = addDays(start, 7) // end of Sunday
+    
+    // Filter events for this member in the current week
+    const weekEvents = events.value.filter(e => {
+        if (e.assignedTo !== memberId) return false
+        const d = new Date(e.date)
+        return d >= start && d < end
+    })
+    
+    let totalMinutes = 0
+    weekEvents.forEach(e => {
+        if (e.time && e.time.includes(' - ')) {
+            const parts = e.time.split(' - ')
+            const startStr = parts[0]
+            const endStr = parts[1]
+            if (startStr && endStr) {
+                const [startH, startM] = startStr.split(':').map(Number)
+                const [endH, endM] = endStr.split(':').map(Number)
+                if (!isNaN(startH) && !isNaN(endH)) {
+                    let diffMins = (endH * 60 + (endM || 0)) - (startH * 60 + (startM || 0))
+                    if (diffMins < 0) diffMins += 24 * 60 // handle overnight shift
+                    totalMinutes += diffMins
+                }
+            }
+        } else {
+            totalMinutes += 8 * 60 // fallback to 8 hours
+        }
+    })
+    
+    const hours = Math.round(totalMinutes / 60)
+    return {
+        shifts: weekEvents.length,
+        hours: hours
+    }
+}
 </script>
 
 <template>
-    <div class="h-full flex flex-col bg-white overflow-hidden">
+    <div class="h-full flex flex-col bg-white overflow-hidden font-sans">
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 border-b border-zinc-100 bg-white z-20">
             <div>
@@ -382,9 +420,9 @@ const openEditEventDialog = (event: CalendarEvent) => {
 
             <div class="flex items-center gap-3">
                 <!-- Filter -->
-                <div class="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-sm">
+                <div class="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm">
                     <Filter :size="14" class="absolute left-3 text-zinc-400" />
-                    <select v-model="filterEmployeeId" class="pl-9 pr-8 py-2 h-9 text-xs font-bold uppercase tracking-wide bg-transparent outline-none cursor-pointer appearance-none min-w-[150px]">
+                    <select v-model="filterEmployeeId" class="pl-9 pr-8 py-2 h-9 text-xs font-bold uppercase tracking-wider bg-transparent outline-none cursor-pointer appearance-none min-w-[150px]">
                         <option value="all">Tous les employés</option>
                         <option v-for="member in teamMembers" :key="member.id" :value="member.id">
                             {{ member.firstName }} {{ member.lastName }}
@@ -393,72 +431,99 @@ const openEditEventDialog = (event: CalendarEvent) => {
                 </div>
 
                 <div class="relative">
-                    <Button @click="showOptionsDialog = !showOptionsDialog" variant="outline" class="h-9 px-3 rounded-sm border-zinc-200 hover:bg-zinc-50">
+                    <Button @click="showOptionsDialog = !showOptionsDialog" variant="outline" class="h-9 px-3 rounded-xl border-zinc-200 hover:bg-zinc-50 shadow-sm transition-all hover:scale-105 active:scale-95">
                         <MoreVertical :size="16" />
                     </Button>
                     
                     <!-- Dropdown Options -->
-                    <div v-if="showOptionsDialog" class="absolute right-0 top-full mt-2 w-56 bg-white border border-zinc-200 shadow-xl z-50 p-1 flex flex-col rounded-sm animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                        <button @click="duplicatePreviousWeek" class="flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-left hover:bg-zinc-50 w-full rounded-sm transition-colors text-zinc-700">
+                    <div v-if="showOptionsDialog" class="absolute right-0 top-full mt-2 w-56 bg-white border border-zinc-200 shadow-xl z-50 p-1 flex flex-col rounded-xl animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                        <button @click="duplicatePreviousWeek" class="flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-left hover:bg-zinc-50 w-full rounded-lg transition-colors text-zinc-700">
                             <Copy :size="14" />
                             Copier semaine précédente
                         </button>
-                         <button @click="fetchEvents" class="flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-left hover:bg-zinc-50 w-full rounded-sm transition-colors text-zinc-700">
+                         <button @click="fetchEvents" class="flex items-center gap-3 px-3 py-2.5 text-xs font-medium text-left hover:bg-zinc-50 w-full rounded-lg transition-colors text-zinc-700">
                             <RefreshCw :size="14" />
                             Actualiser
                         </button>
                     </div>
                 </div>
 
-                <Button @click="openNewEventDialog()" class="bg-black text-white hover:bg-zinc-800 rounded-sm h-9 text-xs uppercase font-bold tracking-wide">
+                <Button @click="openNewEventDialog()" class="bg-zinc-950 text-white hover:bg-zinc-900 rounded-xl h-9 text-xs uppercase font-bold tracking-widest shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                     <Plus :size="14" class="mr-2" /> Shift
                 </Button>
             </div>
         </div>
 
-        <!-- Simplified Daily/Weekly View -->
-        <div class="flex-1 overflow-auto bg-zinc-50/50 p-6">
-            <!-- Iterate over days in the current week -->
-            <div v-for="day in weekDays" :key="day.toString()" class="mb-8 last:mb-0">
-                <div class="flex items-center justify-between mb-4 border-b border-zinc-200 pb-2">
-                    <h3 class="text-lg font-bold text-zinc-900 flex items-center gap-2">
-                        <span class="capitalize">{{ format(day, 'EEEE', { locale: fr }) }}</span>
-                        <span class="text-zinc-500 font-normal">{{ format(day, 'd MMMM', { locale: fr }) }}</span>
-                    </h3>
-                    <Button @click="openNewEventDialog(null, day)" variant="outline" size="sm" class="h-8 text-xs">
-                        <Plus :size="12" class="mr-1" /> Ajouter
-                    </Button>
+        <!-- Weekly Grid View -->
+        <div class="flex-1 overflow-auto p-6 bg-zinc-50/50">
+            <div class="min-w-[1000px] bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden">
+                <!-- Table Header Grid -->
+                <div class="grid grid-cols-8 border-b border-zinc-200/80 bg-zinc-50 divide-x divide-zinc-200/60">
+                    <!-- Left Corner header cell -->
+                    <div class="p-4 text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center justify-between">
+                        <span>Membre</span>
+                        <span class="text-[9px] font-normal lowercase bg-zinc-200 px-1.5 py-0.5 rounded-full text-zinc-600">Charge</span>
+                    </div>
+                    <!-- 7 columns for days -->
+                    <div v-for="day in weekDays" :key="day.toString()" 
+                         class="p-3 flex flex-col items-center justify-center text-center relative"
+                         :class="{ 'bg-zinc-100/50 font-bold': isSameDay(day, new Date()) }">
+                        <!-- Top strip indicating current day -->
+                        <div v-if="isSameDay(day, new Date())" class="absolute top-0 left-0 right-0 h-1 bg-zinc-950"></div>
+                        <span class="text-[9px] uppercase tracking-wider font-bold text-zinc-400 capitalize">{{ format(day, 'EEE', { locale: fr }) }}</span>
+                        <span class="text-xs font-extrabold text-zinc-800 mt-0.5">{{ format(day, 'd MMM', { locale: fr }) }}</span>
+                    </div>
                 </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <!-- Flatten events for this day -->
+
+                <!-- Table Body Rows -->
+                <div class="divide-y divide-zinc-200/80">
                     <template v-for="row in displayedRows" :key="row.id || 'unassigned'">
-                        <div v-for="event in getEventsForCell(row.id, day)" :key="event.id"
-                             class="bg-white border border-zinc-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 group"
-                             :style="{ borderLeftColor: event.color }"
-                             @click="openEditEventDialog(event)">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <h4 class="font-bold text-sm text-zinc-900">{{ event.title }}</h4>
-                                    <p class="text-xs text-zinc-500 font-medium flex items-center gap-1 mt-1">
-                                        <Clock :size="12" /> {{ event.time }}
-                                    </p>
+                        <div class="grid grid-cols-8 divide-x divide-zinc-200/60 hover:bg-zinc-50/20 transition-colors min-h-[100px]">
+                            <!-- Left cell: Employee info & stats -->
+                            <div class="p-4 flex flex-col justify-between bg-zinc-50/10">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm"
+                                         :style="{ backgroundColor: row.color ? row.color + '20' : '#f4f4f5', color: row.color || '#3f3f46', border: `1px solid ${row.color ? row.color + '40' : 'transparent'}` }">
+                                        {{ row.id ? row.name.charAt(0) : '?' }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-extrabold text-zinc-900 truncate" :title="row.name">{{ row.name }}</p>
+                                        <p class="text-[10px] font-medium text-zinc-400 truncate mt-0.5">{{ row.id ? 'Membre' : 'À planifier' }}</p>
+                                    </div>
                                 </div>
-                                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                                     :title="row.name"
-                                     :style="{ backgroundColor: row.color ? row.color + '20' : '#f4f4f5', color: row.color || '#a1a1aa' }">
-                                    {{ row.id ? row.name.charAt(0) : '?' }}
+                                <!-- Micro Stats -->
+                                <div class="mt-2 pt-2 border-t border-dashed border-zinc-200 flex items-center justify-between text-[10px] font-semibold text-zinc-500">
+                                    <span class="bg-zinc-100 px-1.5 py-0.5 rounded">{{ getMemberWeeklyStats(row.id).shifts }} shifts</span>
+                                    <span class="bg-zinc-950 text-white px-1.5 py-0.5 rounded font-mono">{{ getMemberWeeklyStats(row.id).hours }}h</span>
                                 </div>
                             </div>
-                            <p v-if="event.description" class="text-xs text-zinc-600 mt-2 line-clamp-2">{{ event.description }}</p>
+
+                            <!-- 7 Cells for shifts -->
+                            <div v-for="day in weekDays" :key="day.toString()" 
+                                 class="p-2 relative group/cell min-h-[90px] flex flex-col gap-1.5 bg-white hover:bg-zinc-50/10 transition-all"
+                                 :class="{ 'bg-zinc-50/10': isSameDay(day, new Date()) }">
+                                
+                                <!-- Render shifts in this cell -->
+                                <div v-for="event in getEventsForCell(row.id, day)" :key="event.id"
+                                     class="bg-white border border-zinc-200/80 rounded-xl p-2.5 shadow-sm hover:shadow-md hover:border-zinc-300 transition-all cursor-pointer border-l-4 group/card relative flex flex-col justify-between"
+                                     :style="{ borderLeftColor: event.color }"
+                                     @click="openEditEventDialog(event)">
+                                    <div class="flex justify-between items-start">
+                                        <span class="font-extrabold text-[11px] text-zinc-900 truncate max-w-[80px]" :title="event.title">{{ event.title }}</span>
+                                    </div>
+                                    <p class="text-[9px] text-zinc-500 font-mono mt-1.5 flex items-center gap-1">
+                                        <Clock :size="10" /> {{ event.time }}
+                                    </p>
+                                </div>
+
+                                <!-- Add Shift Button (+ Hover) -->
+                                <button @click="openNewEventDialog(row.id, day)" 
+                                        class="opacity-0 group-hover/cell:opacity-100 absolute inset-0 m-auto w-8 h-8 rounded-full bg-zinc-950 text-white hover:bg-zinc-800 shadow-md flex items-center justify-center transition-all scale-75 group-hover/cell:scale-100 z-10">
+                                    <Plus :size="14" />
+                                </button>
+                            </div>
                         </div>
                     </template>
-                    
-                    <!-- Show empty state if no events for the day -->
-                    <div v-if="displayedRows.flatMap(r => getEventsForCell(r.id, day)).length === 0" 
-                         class="col-span-full py-8 text-center text-zinc-400 text-sm border-2 border-dashed border-zinc-200 rounded-lg bg-zinc-50/50">
-                        Aucun shift prévu pour ce jour.
-                    </div>
                 </div>
             </div>
         </div>

@@ -1,58 +1,34 @@
 <script setup lang="ts">
 import { SignIn } from '@clerk/vue'
-import { CheckCircle2 } from 'lucide-vue-next'
 </script>
 
 <template>
-<div class="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2">
-    <!-- Left Side: Branding -->
-    <div class="hidden lg:flex flex-col justify-between bg-zinc-900 p-12 relative overflow-hidden text-white">
-        <!-- Abstract Background -->
-        <div class="absolute inset-0 z-0">
-             <div class="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-indigo-500 rounded-full filter blur-[120px] opacity-20"></div>
-             <div class="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-500 rounded-full filter blur-[120px] opacity-20"></div>
+<div class="min-h-screen w-full flex flex-col items-center justify-center bg-zinc-950 relative overflow-hidden font-sans select-none">
+    <!-- Rich Technical Background Grid -->
+    <div class="absolute inset-0 bg-[linear-gradient(to_right,#18181b_1px,transparent_1px),linear-gradient(to_bottom,#18181b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-35 z-0"></div>
+
+    <!-- Soft glowing aesthetic blurs -->
+    <div class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-500 rounded-full filter blur-[120px] opacity-15 animate-pulse z-0" style="animation-duration: 8s;"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-indigo-500 rounded-full filter blur-[120px] opacity-15 animate-pulse z-0" style="animation-duration: 10s;"></div>
+
+    <div class="relative z-10 w-full max-w-md px-6 flex flex-col items-center">
+        <!-- Logo Header -->
+        <div class="mb-8 flex flex-col items-center text-center">
+            <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl mb-4 hover:scale-105 transition-transform duration-300">
+                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-10 w-10 invert" />
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-white">Espace Connexion</h1>
+            <p class="text-xs text-zinc-400 mt-1.5 max-w-[280px]">Connectez-vous pour accéder à votre tableau de bord EcoFuté.</p>
         </div>
 
-        <!-- Content -->
-        <div class="relative z-10">
-            <div class="flex items-center gap-3 mb-2">
-                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-12 invert" />
-            </div>
-            <p class="text-zinc-400 text-sm max-w-sm">Solution de gestion complète pour votre entreprise.</p>
+        <!-- Clerk SignIn Card wrapper -->
+        <div class="w-full bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-1 shadow-2xl flex justify-center">
+            <SignIn after-sign-in-url="/admin" sign-up-url="/sign-up" />
         </div>
 
-        <div class="relative z-10 space-y-6">
-            <blockquote class="text-2xl font-medium tracking-tight leading-snug">
-                "La simplicité est la sophistication suprême."
-            </blockquote>
-            <div class="space-y-3">
-                <div class="flex items-center gap-3 text-zinc-300 text-sm">
-                    <CheckCircle2 :size="18" class="text-green-400" />
-                    <span>Tableau de bord complet</span>
-                </div>
-                 <div class="flex items-center gap-3 text-zinc-300 text-sm">
-                    <CheckCircle2 :size="18" class="text-green-400" />
-                    <span>Gestion des clients simplifiée</span>
-                </div>
-                 <div class="flex items-center gap-3 text-zinc-300 text-sm">
-                    <CheckCircle2 :size="18" class="text-green-400" />
-                    <span>Suivi de facturation en temps réel</span>
-                </div>
-            </div>
-             <p class="text-xs text-zinc-500 pt-8 mt-8 border-t border-zinc-800">© 2024 EcoFuté Inc. Tous droits réservés.</p>
-        </div>
-    </div>
-
-    <!-- Right Side: Login Form -->
-    <div class="flex flex-col items-center justify-center p-8 bg-zinc-50 relative">
-        <SignIn after-sign-in-url="/admin" sign-up-url="/sign-up" />
-        
-        <div class="mt-8 text-center lg:hidden">
-             <div class="flex items-center justify-center gap-2 mb-2">
-                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-8" />
-            </div>
-            <p class="text-xs text-zinc-500">Gérez votre activité en toute sérénité.</p>
-        </div>
+        <!-- Footer -->
+        <p class="text-[10px] text-zinc-600 mt-8 tracking-wider uppercase font-semibold">© 2026 EcoFuté. Tous droits réservés.</p>
     </div>
 </div>
 </template>
+
