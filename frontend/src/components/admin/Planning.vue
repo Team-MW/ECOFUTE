@@ -380,12 +380,19 @@ const getMemberWeeklyStats = (memberId: string | null) => {
             const startStr = parts[0]
             const endStr = parts[1]
             if (startStr && endStr) {
-                const [startH, startM] = startStr.split(':').map(Number)
-                const [endH, endM] = endStr.split(':').map(Number)
-                if (!isNaN(startH) && !isNaN(endH)) {
-                    let diffMins = (endH * 60 + (endM || 0)) - (startH * 60 + (startM || 0))
-                    if (diffMins < 0) diffMins += 24 * 60 // handle overnight shift
-                    totalMinutes += diffMins
+                const startParts = startStr.split(':')
+                const endParts = endStr.split(':')
+                if (startParts.length >= 2 && endParts.length >= 2) {
+                    const startH = parseInt(startParts[0] || '0', 10)
+                    const startM = parseInt(startParts[1] || '0', 10)
+                    const endH = parseInt(endParts[0] || '0', 10)
+                    const endM = parseInt(endParts[1] || '0', 10)
+                    
+                    if (!isNaN(startH) && !isNaN(endH) && !isNaN(startM) && !isNaN(endM)) {
+                        let diffMins = (endH * 60 + endM) - (startH * 60 + startM)
+                        if (diffMins < 0) diffMins += 24 * 60 // handle overnight shift
+                        totalMinutes += diffMins
+                    }
                 }
             }
         } else {

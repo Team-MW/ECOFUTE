@@ -1,9 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ===== Favicon (onglet navigateur) ===== -->
+    <link rel="icon" type="image/png" href="/icon-app.png" sizes="256x256" />
+    <link rel="shortcut icon" href="/icon-app.png" />
+
+    <!-- ===== Apple Touch Icon (iOS / iPadOS / macOS — "Ajouter à l'écran d'accueil" & widget) ===== -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icon-ipad-pro.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icon-ipad.png" />
+
+    <!-- ===== PWA Manifest (Android / Chrome / Edge) ===== -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ===== Viewport (safe-area pour iPhone avec notch) ===== -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- ===== iOS PWA / Standalone mode ===== -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EcoFuté" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- ===== Theme color (barre de statut) ===== -->
+    <meta name="theme-color" content="#0f1724" />
+
+    <!-- ===== Windows / MSEdge tiles ===== -->
+    <meta name="msapplication-TileColor" content="#0f1724" />
+    <meta name="msapplication-TileImage" content="/icon-app.png" />
+    <meta name="msapplication-config" content="none" />
+
+    <!-- ===== SEO ===== -->
+    <meta name="description" content="EcoFuté – Application de gestion clients, documents et équipes." />
+    <meta name="application-name" content="EcoFuté" />
+
     <title>EcoFuté</title>
   </head>
   <body>

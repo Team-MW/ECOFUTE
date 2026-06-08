@@ -172,7 +172,7 @@ const openEditDemarcheDialog = (demarche: Demarche) => {
         title: demarche.title,
         description: demarche.description || '',
         status: demarche.status,
-        dueDate: demarche.dueDate ? demarche.dueDate.split('T')[0] : ''
+        dueDate: demarche.dueDate ? demarche.dueDate.substring(0, 10) : ''
     }
     showDemarcheDialog.value = true
 }

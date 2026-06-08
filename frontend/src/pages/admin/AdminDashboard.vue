@@ -6,7 +6,7 @@ import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
     Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
-    TrendingUp, BarChart3, Edit3, GraduationCap
+    TrendingUp, BarChart3, Edit3, GraduationCap, Clock
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -322,10 +322,10 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 
         <!-- Sidebar -->
         <aside :class="`
-            fixed md:static inset-y-0 left-0 bg-black text-white flex flex-col shrink-0 z-50 w-64 transform transition-transform duration-300 ease-in-out border-r border-zinc-800
+            fixed md:static inset-y-0 left-0 bg-zinc-950 text-white flex flex-col shrink-0 z-50 w-64 transform transition-transform duration-300 ease-in-out border-r border-zinc-900/60
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `">
-            <div class="h-16 flex items-center justify-between px-6 border-b border-zinc-800">
+            <div class="h-16 flex items-center justify-between px-6 border-b border-zinc-900/60">
                 <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-8 invert" />
                 <button class="md:hidden text-zinc-400 hover:text-white" @click="isMobileMenuOpen = false">
                     <X :size="20" />
