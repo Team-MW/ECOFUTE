@@ -17,6 +17,7 @@ interface Sale {
     amount: number
     date: string
     status: string
+    hiboutikId?: number | null
 }
 
 interface Client {
@@ -24,6 +25,13 @@ interface Client {
     firstName: string
     lastName: string
     company?: string
+}
+
+interface Product {
+    id: number
+    name: string
+    price: number
+    hiboutikId?: number | null
 }
 
 // State
@@ -37,6 +45,8 @@ const currentMonth = ref(new Date())
 
 const isExistingClient = ref(true)
 const selectedClientId = ref<string>('')
+const products = ref<Product[]>([])
+const selectedProductId = ref<string>('')
 
 const saleForm = ref({
     title: '',
@@ -50,6 +60,7 @@ const saleForm = ref({
 onMounted(() => {
     fetchSales()
     fetchClients()
+    fetchProducts()
 })
 
 // API Interactions
@@ -74,15 +85,39 @@ const fetchClients = async () => {
     }
 }
 
+const fetchProducts = async () => {
+    try {
+        const res = await axios.get('/api/products')
+        products.value = res.data
+    } catch (err) {
+        console.error("Failed to fetch products", err)
+    }
+}
+
 const saveSale = async () => {
     isLoading.value = true
     try {
+        let finalTitle = saleForm.value.title
+        if (!finalTitle) {
+            if (selectedProductId.value) {
+                const product = products.value.find(p => p.id.toString() === selectedProductId.value)
+                if (product) finalTitle = product.name
+            }
+            if (!finalTitle && isExistingClient.value && selectedClientId.value) {
+                const client = clients.value.find(c => c.id.toString() === selectedClientId.value)
+                if (client) finalTitle = client.company || `${client.firstName} ${client.lastName}`
+            }
+            if (!finalTitle) finalTitle = "Vente (Aucun titre)"
+        }
+
         const payload = {
-            title: saleForm.value.title,
+            title: finalTitle,
             description: saleForm.value.description,
             amount: parseFloat(saleForm.value.amount),
             date: saleForm.value.date,
-            status: saleForm.value.status
+            status: saleForm.value.status,
+            clientId: isExistingClient.value && selectedClientId.value ? selectedClientId.value : undefined,
+            productId: selectedProductId.value || undefined
         }
 
         if (editingSale.value) {
@@ -95,8 +130,10 @@ const saveSale = async () => {
         showSaleDialog.value = false
         editingSale.value = null
         resetForm()
-    } catch (err) {
-        showToast("Erreur lors de la sauvegarde", "error")
+    } catch (err: any) {
+        console.error(err)
+        const msg = err.response?.data?.error || "Erreur lors de la sauvegarde"
+        showToast(msg, "error")
     } finally {
         isLoading.value = false
     }
@@ -130,6 +167,7 @@ const resetForm = () => {
         status: 'Payé'
     }
     selectedClientId.value = ''
+    selectedProductId.value = ''
     isExistingClient.value = true
 }
 
@@ -137,6 +175,16 @@ const handleClientSelect = () => {
     const client = clients.value.find(c => c.id.toString() === selectedClientId.value)
     if (client) {
         saleForm.value.title = client.company || `${client.firstName} ${client.lastName}`
+    }
+}
+
+const handleProductSelect = () => {
+    const product = products.value.find(p => p.id.toString() === selectedProductId.value)
+    if (product) {
+        saleForm.value.amount = product.price.toString()
+        if (!isExistingClient.value && !saleForm.value.title) {
+            saleForm.value.title = product.name
+        }
     }
 }
 
@@ -331,7 +379,10 @@ const salesCount = computed(() => filteredSales.value.length)
                             <td class="px-6 py-4">
                                 <div class="font-medium text-zinc-900 text-sm">{{ sale.title }}</div>
                                 <div v-if="sale.description" class="text-xs text-zinc-500 mt-0.5 max-w-[200px] truncate">{{ sale.description }}</div>
-                                <div class="text-[10px] text-zinc-400 mt-0.5 uppercase tracking-wide">ID: #{{ sale.id }}</div>
+                                <div class="flex items-center gap-2 mt-0.5">
+                                    <div class="text-[10px] text-zinc-400 uppercase tracking-wide">ID: #{{ sale.id }}</div>
+                                    <Badge v-if="sale.hiboutikId" variant="outline" class="text-[9px] bg-blue-50 text-blue-600 border-blue-200 px-1 py-0 h-4">SYNC #{{sale.hiboutikId}}</Badge>
+                                </div>
                             </td>
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-2 text-sm text-zinc-600">
@@ -390,6 +441,28 @@ const salesCount = computed(() => filteredSales.value.length)
 
                 <form @submit.prevent="saveSale" class="p-6 space-y-5">
                     
+                    <!-- Product Selection Section -->
+                    <div class="space-y-3 pb-3 border-b border-zinc-100">
+                        <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                            Produit / Service
+                        </label>
+                        <div class="relative">
+                            <select 
+                                v-model="selectedProductId" 
+                                @change="handleProductSelect"
+                                class="w-full h-10 px-3 pr-10 rounded-xl border border-zinc-300 focus:border-zinc-950 outline-none appearance-none bg-white text-sm font-medium"
+                            >
+                                <option value="">Aucun produit (Vente libre)</option>
+                                <option v-for="product in products" :key="product.id" :value="product.id">
+                                    {{ product.name }} - {{ formatCurrency(product.price) }}
+                                </option>
+                            </select>
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <ChevronDown :size="14" class="text-zinc-500" />
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Client / Title Selection Section -->
                     <div class="space-y-3 pb-3 border-b border-zinc-100">
                         <div class="flex items-center justify-between">

@@ -6,6 +6,7 @@ import documentRoutes from './routes/documents.js';
 import eventRoutes from './routes/events.js';
 import salesRoutes from './routes/sales.js';
 import userRoutes from './routes/users.js';
+import productRoutes from './routes/products.js';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
 
 // Health Check
 app.get('/api/ping', (req, res) => {

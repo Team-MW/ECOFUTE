@@ -6,7 +6,7 @@ import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
     Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
-    TrendingUp, BarChart3, Edit3, GraduationCap, Clock
+    TrendingUp, BarChart3, Edit3, GraduationCap, Clock, Package
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,7 +22,9 @@ import TeamManager from '@/components/admin/TeamManager.vue'
 import DashboardStats from '@/components/admin/DashboardStats.vue'
 import Planning from '@/components/admin/Planning.vue'
 import SchoolManager from '@/components/admin/SchoolManager.vue'
+import ProductManager from '@/components/admin/ProductManager.vue'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
+import InstallAppButton from '@/components/ui/InstallAppButton.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
 
 // --- Interfaces ---
@@ -85,7 +87,7 @@ const editForm = ref({
     tvaNumber: ''
 })
 
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products'>('clients')
 
 const isAdmin = computed(() => {
     if (!user.value) return false
@@ -384,6 +386,13 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     <FilePlus :size="18" />
                     Création Facture
                 </button>
+                <button
+                    @click="activeView = 'products'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'products' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <Package :size="18" />
+                    Produits / Services
+                </button>
                 <div v-if="isAdmin" class="px-2 py-3 mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Administration</div>
                 <button
                     v-if="isAdmin"
@@ -429,7 +438,9 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
-                <div class="flex items-center gap-2 md:gap-4">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <!-- Bouton installer l'app -->
+                    <InstallAppButton />
                     <button @click="handleSignOut" class="md:hidden p-2 text-black">
                         <LogOut :size="20" />
                     </button>
@@ -567,6 +578,11 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <!-- Schools View -->
                 <div v-else-if="activeView === 'schools'" class="h-full">
                     <SchoolManager />
+                </div>
+
+                <!-- Products View -->
+                <div v-else-if="activeView === 'products'" class="h-full">
+                    <ProductManager />
                 </div>
 
                 <!-- Clients List View -->
