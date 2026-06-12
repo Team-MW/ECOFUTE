@@ -86,8 +86,15 @@ const generateMockData = () => {
 
     // Mock Sales
     const today = new Date()
-    sales.value = Array.from({ length: 30 }, (_, i) => {
-        const d = new Date(today.getFullYear(), today.getMonth() - Math.floor(Math.random() * 6), Math.floor(Math.random() * 28) + 1)
+    sales.value = Array.from({ length: 35 }, (_, i) => {
+        let d: Date
+        if (i < 5) {
+            // Generate 5 sales in the last 6 days to guarantee current week data
+            d = new Date()
+            d.setDate(today.getDate() - i)
+        } else {
+            d = new Date(today.getFullYear(), today.getMonth() - Math.floor(Math.random() * 6), Math.floor(Math.random() * 28) + 1)
+        }
         return {
             id: i,
             title: `Vente #${i}`,
@@ -108,6 +115,42 @@ const totalRevenue = computed(() => {
 const pendingRevenue = computed(() => {
     return sales.value
         .filter(s => s.status === 'En attente')
+        .reduce((sum, sale) => sum + sale.amount, 0)
+})
+
+const weeklyRevenue = computed(() => {
+    const today = new Date()
+    const day = today.getDay()
+    const diff = today.getDate() - (day === 0 ? 6 : day - 1)
+    const startOfWeek = new Date(today)
+    startOfWeek.setDate(diff)
+    startOfWeek.setHours(0, 0, 0, 0)
+    
+    return sales.value
+        .filter(s => {
+            if (s.status !== 'Payé') return false
+            if (!s.date) return false
+            const saleDate = new Date(s.date)
+            return saleDate >= startOfWeek
+        })
+        .reduce((sum, sale) => sum + sale.amount, 0)
+})
+
+const weeklyPendingRevenue = computed(() => {
+    const today = new Date()
+    const day = today.getDay()
+    const diff = today.getDate() - (day === 0 ? 6 : day - 1)
+    const startOfWeek = new Date(today)
+    startOfWeek.setDate(diff)
+    startOfWeek.setHours(0, 0, 0, 0)
+    
+    return sales.value
+        .filter(s => {
+            if (s.status !== 'En attente') return false
+            if (!s.date) return false
+            const saleDate = new Date(s.date)
+            return saleDate >= startOfWeek
+        })
         .reduce((sum, sale) => sum + sale.amount, 0)
 })
 
@@ -311,7 +354,7 @@ const formatCurrency = (val: number) => {
         <!-- Main Dashboard Content -->
         <div v-else class="space-y-6">
             <!-- Header Stats Cards -->
-            <div :class="`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`">
+            <div :class="`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4`">
                 <!-- Revenue Card -->
                 <div v-if="isAdmin" class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
                     <div class="flex items-center justify-between mb-4">
@@ -323,6 +366,20 @@ const formatCurrency = (val: number) => {
                     <div class="flex items-end gap-2">
                         <span class="text-3xl font-bold text-black tracking-tight">{{ formatCurrency(totalRevenue) }}</span>
                         <span v-if="pendingRevenue > 0" class="text-xs text-amber-500 font-medium mb-1.5">+{{ formatCurrency(pendingRevenue) }} en attente</span>
+                    </div>
+                </div>
+
+                <!-- Weekly Revenue Card -->
+                <div v-if="isAdmin" class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">CA de la Semaine</h3>
+                        <div class="p-2 bg-emerald-50 rounded-full group-hover:bg-emerald-100 transition-colors">
+                            <TrendingUp :size="16" class="text-emerald-600" />
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="text-3xl font-bold text-black tracking-tight">{{ formatCurrency(weeklyRevenue) }}</span>
+                        <span v-if="weeklyPendingRevenue > 0" class="text-xs text-amber-500 font-medium mb-1.5">+{{ formatCurrency(weeklyPendingRevenue) }} en attente</span>
                     </div>
                 </div>
 
