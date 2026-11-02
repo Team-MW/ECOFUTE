@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
 
 // 2. CREATE A SALE
 router.post('/', async (req, res) => {
-    const { title, description, amount, date, status, productId, clientId } = req.body;
+    const { title, description, amount, date, status, productId, clientId, service } = req.body;
 
     if (!title || amount === undefined || amount === null) {
         return res.status(400).json({ error: 'Title and amount are required' });
@@ -130,6 +130,7 @@ router.post('/', async (req, res) => {
                 amount: saleAmount,
                 date: saleDate,
                 status: status || 'Payé',
+                service: service || null,
                 clientId: clientId ? parseInt(clientId) : null,
                 productId: productId ? parseInt(productId) : null,
                 hiboutikId: hiboutikSaleId
@@ -146,7 +147,7 @@ router.post('/', async (req, res) => {
 // 3. UPDATE A SALE
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
-    const { title, description, amount, date, status } = req.body;
+    const { title, description, amount, date, status, service } = req.body;
 
     try {
         const data = {};
@@ -155,6 +156,7 @@ router.put('/:id', async (req, res) => {
         if (amount) data.amount = parseFloat(amount);
         if (date) data.date = new Date(date);
         if (status) data.status = status;
+        if (service !== undefined) data.service = service || null;
 
         const updatedSale = await prisma.sale.update({
             where: { id: parseInt(id) },

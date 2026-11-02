@@ -6,10 +6,12 @@ import axios from 'axios'
 import { 
     Users, Search, LogOut, UserPlus, X, Loader, 
     Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
-    TrendingUp, BarChart3, Edit3, GraduationCap, Clock, Package
+    TrendingUp, BarChart3, Edit3, GraduationCap, Clock, Package,
+    Folder, StickyNote, Shirt, KeyRound
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -23,6 +25,8 @@ import DashboardStats from '@/components/admin/DashboardStats.vue'
 import Planning from '@/components/admin/Planning.vue'
 import SchoolManager from '@/components/admin/SchoolManager.vue'
 import ProductManager from '@/components/admin/ProductManager.vue'
+import TextileInventory from '@/components/admin/TextileInventory.vue'
+import LocksmithInventory from '@/components/admin/LocksmithInventory.vue'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 import InstallAppButton from '@/components/ui/InstallAppButton.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
@@ -37,6 +41,8 @@ interface Document {
     createdAt: string;
     status: string;
     clientId: number;
+    category?: string | null;
+    folder?: string | null;
 }
 
 interface Client {
@@ -46,11 +52,16 @@ interface Client {
     lastName: string | null;
     company: string | null;
     address?: string | null;
+    addressComplement?: string | null;
     city?: string | null;
     zipCode?: string | null;
     phone?: string | null;
     siret?: string | null;
     tvaNumber?: string | null;
+    birthDate?: string | null;
+    birthPlace?: string | null;
+    nationality?: string | null;
+    notes?: string | null;
     status: string;
     createdAt: string;
     documents: Document[];
@@ -80,14 +91,19 @@ const editForm = ref({
     email: '',
     company: '',
     address: '',
+    addressComplement: '',
     city: '',
     zipCode: '',
     phone: '',
     siret: '',
-    tvaNumber: ''
+    tvaNumber: '',
+    birthDate: '',
+    birthPlace: '',
+    nationality: '',
+    notes: ''
 })
 
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products' | 'textile' | 'serrurerie'>('clients')
 
 const isAdmin = computed(() => {
     if (!user.value) return false
@@ -96,7 +112,7 @@ const isAdmin = computed(() => {
 })
 
 watch([activeView, isAdmin], ([newView, adminVal]) => {
-    if ((newView === 'team' || newView === 'sales') && !adminVal) {
+    if ((newView === 'team' || newView === 'sales' || newView === 'stats') && !adminVal) {
         activeView.value = 'clients'
     }
 })
@@ -124,6 +140,27 @@ const filteredUsers = computed(() => {
 })
 
 const selectedUserId = computed(() => selectedUser.value ? selectedUser.value.id : undefined)
+
+const clientNotes = ref('')
+const isSavingNotes = ref(false)
+const documentManagerRef = ref<{ openFolder: (folder: string) => void } | null>(null)
+
+const assignedFolders = computed(() => {
+    if (!selectedUser.value) return []
+    const namedFolders = selectedUser.value.folders?.map(f => f.name) || []
+    const docFolders = (selectedUser.value.documents || [])
+        .map(d => d.category || d.folder)
+        .filter((name): name is string => !!name && name !== 'Autre')
+    const names = [...new Set([...namedFolders, ...docFolders])]
+    return names.map(name => ({
+        name,
+        count: (selectedUser.value?.documents || []).filter(d => (d.category || d.folder) === name).length
+    }))
+})
+
+watch(selectedUser, (client) => {
+    clientNotes.value = client?.notes || ''
+}, { immediate: true })
 
 // --- Methods ---
 
@@ -178,11 +215,16 @@ const handleCreateUser = async (e: Event) => {
             email: formData.get('email') as string,
             company: formData.get('company') as string,
             address: formData.get('address') as string,
+            addressComplement: formData.get('addressComplement') as string,
             city: formData.get('city') as string,
             zipCode: formData.get('zipCode') as string,
             phone: formData.get('phone') as string,
             siret: formData.get('siret') as string,
-            tvaNumber: formData.get('tvaNumber') as string
+            tvaNumber: formData.get('tvaNumber') as string,
+            birthDate: formData.get('birthDate') as string,
+            birthPlace: formData.get('birthPlace') as string,
+            nationality: formData.get('nationality') as string,
+            notes: formData.get('notes') as string
         }
 
         const res = await axios.post('/api/clients', payload)
@@ -208,11 +250,16 @@ const openEditUser = () => {
         email: u.email || '',
         company: u.company || '',
         address: u.address || '',
+        addressComplement: u.addressComplement || '',
         city: u.city || '',
         zipCode: u.zipCode || '',
         phone: u.phone || '',
         siret: u.siret || '',
-        tvaNumber: u.tvaNumber || ''
+        tvaNumber: u.tvaNumber || '',
+        birthDate: toDateInputValue(u.birthDate),
+        birthPlace: u.birthPlace || '',
+        nationality: u.nationality || '',
+        notes: u.notes || ''
     }
     showEditForm.value = true
 }
@@ -304,7 +351,59 @@ function setIsLoading(val: boolean) {
     isLoading.value = val
 }
 
+const saveClientNotes = async () => {
+    if (!selectedUser.value) return
+    const u = selectedUser.value
+    isSavingNotes.value = true
+    try {
+        const res = await axios.put(`/api/clients/${u.id}`, {
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+            company: u.company,
+            address: u.address,
+            addressComplement: u.addressComplement,
+            city: u.city,
+            zipCode: u.zipCode,
+            phone: u.phone,
+            siret: u.siret,
+            tvaNumber: u.tvaNumber,
+            birthDate: toDateInputValue(u.birthDate) || null,
+            birthPlace: u.birthPlace,
+            nationality: u.nationality,
+            notes: clientNotes.value
+        })
+        const updatedNotes = res.data?.notes ?? clientNotes.value
+        selectedUser.value = { ...selectedUser.value, notes: updatedNotes }
+        const index = users.value.findIndex(c => c.id === selectedUser.value?.id)
+        if (index !== -1) {
+            users.value[index] = { ...users.value[index], notes: updatedNotes }
+        }
+        showToast('Note enregistrée', 'success')
+    } catch (err: any) {
+        showToast('Erreur: ' + (err.response?.data?.error || err.message), 'error')
+    } finally {
+        isSavingNotes.value = false
+    }
+}
+
+const openAssignedFolder = (folderName: string) => {
+    documentManagerRef.value?.openFolder(folderName)
+}
+
 const formatDate = (d: string) => new Date(d).toLocaleDateString()
+
+const toDateInputValue = (d?: string | null) => {
+    if (!d) return ''
+    return d.slice(0, 10)
+}
+
+const formatBirthDate = (d?: string | null) => {
+    const value = toDateInputValue(d)
+    if (!value) return ''
+    const [year, month, day] = value.split('-')
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('fr-FR')
+}
 
 
 // --- Lifecycle ---
@@ -373,6 +472,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                     Suivi de Vente
                 </button>
                 <button
+                    v-if="isAdmin"
                     @click="activeView = 'stats'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'stats' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
                 >
@@ -392,6 +492,20 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 >
                     <Package :size="18" />
                     Produits / Services
+                </button>
+                <button
+                    @click="activeView = 'textile'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'textile' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <Shirt :size="18" />
+                    Textile
+                </button>
+                <button
+                    @click="activeView = 'serrurerie'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'serrurerie' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <KeyRound :size="18" />
+                    Serrurerie
                 </button>
                 <div v-if="isAdmin" class="px-2 py-3 mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Administration</div>
                 <button
@@ -435,7 +549,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                         </div>
                     </button>
                     <div class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
-                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : 'Tableau de bord / Clients' }}
+                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : activeView === 'textile' ? 'Tableau de bord / Textile' : activeView === 'serrurerie' ? 'Tableau de bord / Serrurerie' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 md:gap-3">
@@ -494,10 +608,25 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                         <span class="text-zinc-500">Téléphone</span>
                                         <span class="font-medium text-black">{{ selectedUser.phone }}</span>
                                     </div>
-                                    <div v-if="selectedUser.address || selectedUser.city" class="text-sm border-t border-zinc-50 pt-3 mt-3">
+                                    <div v-if="selectedUser.address || selectedUser.addressComplement || selectedUser.city" class="text-sm border-t border-zinc-50 pt-3 mt-3">
                                         <span class="text-zinc-500 block mb-1">Adresse</span>
-                                        <span class="font-medium text-black block">{{ selectedUser.address }}</span>
+                                        <span v-if="selectedUser.address" class="font-medium text-black block">{{ selectedUser.address }}</span>
+                                        <span v-if="selectedUser.addressComplement" class="font-medium text-black block">{{ selectedUser.addressComplement }}</span>
                                         <span class="font-medium text-black block">{{ selectedUser.zipCode }} {{ selectedUser.city }}</span>
+                                    </div>
+                                    <div v-if="selectedUser.birthDate || selectedUser.birthPlace || selectedUser.nationality" class="text-sm border-t border-zinc-50 pt-3 mt-3 space-y-2">
+                                        <div v-if="selectedUser.birthDate" class="flex justify-between items-center">
+                                            <span class="text-zinc-500">Date de naissance</span>
+                                            <span class="font-medium text-black">{{ formatBirthDate(selectedUser.birthDate) }}</span>
+                                        </div>
+                                        <div v-if="selectedUser.birthPlace" class="flex justify-between items-center">
+                                            <span class="text-zinc-500">Lieu de naissance</span>
+                                            <span class="font-medium text-black">{{ selectedUser.birthPlace }}</span>
+                                        </div>
+                                        <div v-if="selectedUser.nationality" class="flex justify-between items-center">
+                                            <span class="text-zinc-500">Nationalité</span>
+                                            <span class="font-medium text-black">{{ selectedUser.nationality }}</span>
+                                        </div>
                                     </div>
                                     <div v-if="selectedUser.siret" class="text-sm border-t border-zinc-50 pt-3 mt-3">
                                         <span class="text-zinc-500 block mb-1">SIRET</span>
@@ -507,6 +636,55 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                         <span class="text-zinc-500 block mb-1">TVA</span>
                                         <span class="font-medium text-black font-mono text-xs">{{ selectedUser.tvaNumber }}</span>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-none border border-zinc-200 p-6 shadow-sm">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <StickyNote :size="16" class="text-zinc-400" />
+                                    <h3 class="text-sm font-bold text-black">Notes</h3>
+                                </div>
+                                <Textarea
+                                    v-model="clientNotes"
+                                    placeholder="Ajouter une note sur ce client..."
+                                    class="min-h-[120px] rounded-none border-zinc-200 text-sm"
+                                />
+                                <div class="flex justify-end mt-3">
+                                    <Button
+                                        size="sm"
+                                        :disabled="isSavingNotes"
+                                        class="bg-black hover:bg-zinc-800 text-white rounded-none h-8 text-xs uppercase tracking-wider"
+                                        @click="saveClientNotes"
+                                    >
+                                        <Loader v-if="isSavingNotes" class="animate-spin mr-2" :size="14" />
+                                        Enregistrer
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-none border border-zinc-200 p-6 shadow-sm">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <Folder :size="16" class="text-zinc-400" />
+                                        <h3 class="text-sm font-bold text-black">Dossiers attribués</h3>
+                                    </div>
+                                    <span class="text-[10px] font-mono text-zinc-400">{{ assignedFolders.length }}</span>
+                                </div>
+                                <div v-if="assignedFolders.length === 0" class="text-sm text-zinc-400">
+                                    Aucun dossier attribué à ce client.
+                                </div>
+                                <div v-else class="space-y-2">
+                                    <button
+                                        v-for="folder in assignedFolders"
+                                        :key="folder.name"
+                                        class="w-full flex items-center justify-between px-3 py-2 border border-zinc-100 hover:border-black hover:bg-zinc-50 text-left transition-colors"
+                                        @click="openAssignedFolder(folder.name)"
+                                    >
+                                        <span class="text-sm font-medium text-black truncate">{{ folder.name }}</span>
+                                        <span class="text-[10px] uppercase tracking-wide text-zinc-400 font-semibold shrink-0 ml-2">
+                                            {{ folder.count }} fichier{{ folder.count > 1 ? 's' : '' }}
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -522,6 +700,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
 
                             <div class="bg-white border border-zinc-200 min-h-[400px]">
                                 <DocumentManager 
+                                    ref="documentManagerRef"
                                     :documents="selectedUser.documents" 
                                     :folders="selectedUser.folders"
                                     :clientId="selectedUser.id"
@@ -534,7 +713,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 </div>
 
                 <!-- Stats View -->
-                <div v-else-if="activeView === 'stats'" class="h-full">
+                <div v-else-if="activeView === 'stats' && isAdmin" class="h-full">
                     <div class="mb-8 border-b border-zinc-100 pb-4 px-8 pt-8">
                         <h1 class="text-3xl font-bold text-black tracking-tight tracking-tighter">Statistiques</h1>
                         <p class="text-zinc-500 mt-2">Vue d'ensemble de l'activité EcoFuté.</p>
@@ -583,6 +762,14 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                 <!-- Products View -->
                 <div v-else-if="activeView === 'products'" class="h-full">
                     <ProductManager />
+                </div>
+
+                <div v-else-if="activeView === 'textile'" class="h-full">
+                    <TextileInventory />
+                </div>
+
+                <div v-else-if="activeView === 'serrurerie'" class="h-full">
+                    <LocksmithInventory />
                 </div>
 
                 <!-- Clients List View -->
@@ -714,6 +901,10 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                 <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Adresse</label>
                                 <Input name="address" placeholder="10 Rue de la Paix" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                             </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Complément d'adresse</label>
+                                <Input name="addressComplement" placeholder="Bâtiment, appartement, étage..." class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                            </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Code Postal</label>
@@ -722,6 +913,25 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ville</label>
                                     <Input name="city" placeholder="Paris" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                </div>
+                            </div>
+                            <div class="border-t border-zinc-100 pt-4">
+                                <h4 class="text-sm font-bold mb-3">État civil</h4>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Date de naissance</label>
+                                            <Input type="date" name="birthDate" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Lieu de naissance</label>
+                                            <Input name="birthPlace" placeholder="Ex: Paris" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nationalité</label>
+                                        <Input name="nationality" placeholder="Ex: Française" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                    </div>
                                 </div>
                             </div>
                              <div class="grid grid-cols-2 gap-4">
@@ -733,6 +943,10 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">N° TVA</label>
                                     <Input name="tvaNumber" placeholder="FR 12 345678900" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes</label>
+                                <Textarea name="notes" placeholder="Notes internes sur ce client..." class="min-h-[90px] rounded-xl border-zinc-200/80" />
                             </div>
                         </div>
                     </div>
@@ -788,6 +1002,10 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                 <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Adresse</label>
                                 <Input v-model="editForm.address" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                             </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Complément d'adresse</label>
+                                <Input v-model="editForm.addressComplement" placeholder="Bâtiment, appartement, étage..." class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                            </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Code Postal</label>
@@ -796,6 +1014,25 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ville</label>
                                     <Input v-model="editForm.city" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                </div>
+                            </div>
+                            <div class="border-t border-zinc-100 pt-4">
+                                <h4 class="text-sm font-bold mb-3">État civil</h4>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Date de naissance</label>
+                                            <Input type="date" v-model="editForm.birthDate" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Lieu de naissance</label>
+                                            <Input v-model="editForm.birthPlace" placeholder="Ex: Paris" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nationalité</label>
+                                        <Input v-model="editForm.nationality" placeholder="Ex: Française" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
+                                    </div>
                                 </div>
                             </div>
                              <div class="grid grid-cols-2 gap-4">
@@ -807,6 +1044,10 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString()
                                     <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">N° TVA</label>
                                     <Input v-model="editForm.tvaNumber" class="rounded-xl border-zinc-200/80 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950" />
                                 </div>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes</label>
+                                <Textarea v-model="editForm.notes" placeholder="Notes internes sur ce client..." class="min-h-[90px] rounded-xl border-zinc-200/80" />
                             </div>
                         </div>
                     </div>

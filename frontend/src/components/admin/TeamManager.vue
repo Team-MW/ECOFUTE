@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
-import { Plus, Trash2, Shield, Mail, Lock, Loader } from 'lucide-vue-next'
+import { Plus, Trash2, Shield, Mail, Lock, Loader, Pencil } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -28,15 +28,51 @@ interface TeamMember {
 const members = ref<TeamMember[]>([])
 const isLoading = ref(true)
 const showInviteDialog = ref(false)
+const showEditDialog = ref(false)
 const isSubmitting = ref(false)
+const isSavingEdit = ref(false)
+const editForm = ref({
+    id: '',
+    firstName: '',
+    lastName: '',
+    email: ''
+})
 
 const form = ref({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    color: '#3b82f6'
+    color: '#3b82f6',
+    role: 'membre'
 })
+
+const isAdminEmail = (email?: string) =>
+    email === 'ecomaxifute@gmail.com' || email === 'sofianelamine772@gmail.com'
+
+const roleLabel = (member: TeamMember) => {
+    if (isAdminEmail(member.email) || member.role === 'admin') return 'Admin EcoFuté'
+    if (member.role === 'alternant') return 'Alternant'
+    return 'Membre EcoFuté'
+}
+
+const onRoleChange = (member: TeamMember, event: Event) => {
+    const role = (event.target as HTMLSelectElement).value
+    updateMemberRole(member, role)
+}
+
+const updateMemberRole = async (member: TeamMember, role: string) => {
+    try {
+        const res = await axios.put(`/api/users/${member.id}`, { role, color: member.color })
+        const index = members.value.findIndex(m => m.id === member.id)
+        if (index !== -1) {
+            members.value[index] = { ...members.value[index], ...res.data }
+        }
+        showToast(role === 'alternant' ? 'Profil Alternant : planning personnel uniquement' : 'Profil Membre : planning équipe visible', 'success')
+    } catch (e: any) {
+        showToast('Erreur: ' + (e.response?.data?.error || e.message), 'error')
+    }
+}
 
 const fetchMembers = async () => {
     try {
@@ -55,7 +91,7 @@ const handleInvite = async () => {
         const res = await axios.post('/api/users', form.value)
         members.value.push(res.data)
         showInviteDialog.value = false
-        form.value = { firstName: '', lastName: '', email: '', password: '', color: '#3b82f6' }
+        form.value = { firstName: '', lastName: '', email: '', password: '', color: '#3b82f6', role: 'membre' }
         showToast("Utilisateur créé avec succès !", "success")
     } catch (e: any) {
         showToast("Erreur: " + (e.response?.data?.error || e.message), "error")
@@ -77,6 +113,41 @@ const handleInvite = async () => {
 //        <span class="text-xs text-zinc-500">{{ form.color }}</span>
 //    </div>
 // </div>
+
+const openEdit = (member: TeamMember) => {
+    editForm.value = {
+        id: member.id,
+        firstName: member.firstName || '',
+        lastName: member.lastName || '',
+        email: member.email || ''
+    }
+    showEditDialog.value = true
+}
+
+const saveEdit = async () => {
+    if (!editForm.value.email) {
+        showToast('L’adresse email est requise', 'error')
+        return
+    }
+    isSavingEdit.value = true
+    try {
+        const res = await axios.put(`/api/users/${editForm.value.id}`, {
+            firstName: editForm.value.firstName,
+            lastName: editForm.value.lastName,
+            email: editForm.value.email
+        })
+        const index = members.value.findIndex(m => m.id === editForm.value.id)
+        if (index !== -1) {
+            members.value[index] = { ...members.value[index], ...res.data }
+        }
+        showEditDialog.value = false
+        showToast('Coordonnées mises à jour', 'success')
+    } catch (e: any) {
+        showToast('Erreur: ' + (e.response?.data?.error || e.message), 'error')
+    } finally {
+        isSavingEdit.value = false
+    }
+}
 
 const handleDelete = async (id: string) => {
     const isConfirmed = await showConfirm({
@@ -120,9 +191,14 @@ onMounted(fetchMembers)
 
             <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div v-for="member in members" :key="member.id" class="border border-zinc-200 p-6 rounded-sm hover:border-black transition-colors group relative bg-white shadow-sm">
-                    <button @click="handleDelete(member.id)" class="absolute top-4 right-4 text-zinc-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                        <Trash2 :size="16" />
-                    </button>
+                    <div class="absolute top-4 right-4 flex items-center gap-2">
+                        <button @click="openEdit(member)" class="text-zinc-300 hover:text-black transition-colors opacity-0 group-hover:opacity-100">
+                            <Pencil :size="16" />
+                        </button>
+                        <button @click="handleDelete(member.id)" class="text-zinc-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                            <Trash2 :size="16" />
+                        </button>
+                    </div>
                     
                     <div class="flex items-center gap-4 mb-4">
                         <div 
@@ -138,18 +214,14 @@ onMounted(fetchMembers)
                         <div>
                             <h3 class="font-bold text-black">{{ member.firstName }} {{ member.lastName }}</h3>
                             <Badge 
-                                v-if="member.email === 'ecomaxifute@gmail.com' || member.email === 'sofianelamine772@gmail.com'"
                                 variant="secondary" 
-                                class="mt-1 text-[10px] bg-zinc-950 text-white font-normal"
+                                :class="roleLabel(member).startsWith('Admin')
+                                    ? 'mt-1 text-[10px] bg-zinc-950 text-white font-normal'
+                                    : member.role === 'alternant'
+                                        ? 'mt-1 text-[10px] bg-amber-100 text-amber-800 font-normal'
+                                        : 'mt-1 text-[10px] bg-zinc-100 text-zinc-600 font-normal'"
                             >
-                                Admin EcoFuté
-                            </Badge>
-                            <Badge 
-                                v-else 
-                                variant="secondary" 
-                                class="mt-1 text-[10px] bg-zinc-100 text-zinc-600 font-normal"
-                            >
-                                Membre EcoFuté
+                                {{ roleLabel(member) }}
                             </Badge>
                         </div>
                     </div>
@@ -161,7 +233,18 @@ onMounted(fetchMembers)
                         </div>
                          <div class="flex items-center gap-2 text-sm text-zinc-500">
                             <Shield :size="14" />
-                            <span>Accès complet</span>
+                            <span>{{ member.role === 'alternant' ? 'Planning personnel uniquement' : 'Accès complet' }}</span>
+                        </div>
+                        <div v-if="!isAdminEmail(member.email)" class="pt-2">
+                            <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-400 block mb-1">Profil</label>
+                            <select
+                                :value="member.role === 'alternant' ? 'alternant' : 'membre'"
+                                class="w-full px-2 py-1.5 text-xs border border-zinc-200 rounded-sm bg-white text-zinc-700"
+                                @change="onRoleChange(member, $event)"
+                            >
+                                <option value="membre">Membre — voit tout le planning</option>
+                                <option value="alternant">Alternant — voit uniquement le sien</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -204,6 +287,17 @@ onMounted(fetchMembers)
                     </div>
 
                     <div class="space-y-2">
+                        <label class="text-xs font-bold uppercase text-zinc-500">Profil</label>
+                        <select
+                            v-model="form.role"
+                            class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-xl bg-white text-black font-medium"
+                        >
+                            <option value="membre">Membre — voit le planning de toute l'équipe</option>
+                            <option value="alternant">Alternant — voit uniquement son planning</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
                         <label class="text-xs font-bold uppercase text-zinc-500">Couleur d'identification</label>
                         <div class="flex items-center gap-3 p-2 border border-zinc-200 rounded-xl bg-white">
                             <input 
@@ -223,6 +317,38 @@ onMounted(fetchMembers)
                         <Button type="submit" :disabled="isSubmitting" class="bg-zinc-950 text-white hover:bg-zinc-900 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                             <Loader v-if="isSubmitting" class="animate-spin mr-2" :size="14" />
                             {{ isSubmitting ? 'Création...' : 'Créer l\'accès' }}
+                        </Button>
+                    </div>
+                </form>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog v-model:open="showEditDialog">
+            <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 p-6 shadow-2xl bg-white">
+                <DialogHeader>
+                    <DialogTitle class="text-xl font-bold tracking-tight">Modifier l’accès</DialogTitle>
+                    <DialogDescription>Mets à jour le nom ou l’adresse email du membre.</DialogDescription>
+                </DialogHeader>
+                <form @submit.prevent="saveEdit" class="space-y-4 pt-2">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold uppercase text-zinc-500">Prénom</label>
+                            <Input v-model="editForm.firstName" required />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold uppercase text-zinc-500">Nom</label>
+                            <Input v-model="editForm.lastName" required />
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold uppercase text-zinc-500">Adresse email</label>
+                        <Input v-model="editForm.email" type="email" required placeholder="email@exemple.com" />
+                    </div>
+                    <div class="flex justify-end gap-3 pt-2">
+                        <Button type="button" variant="ghost" @click="showEditDialog = false">Annuler</Button>
+                        <Button type="submit" :disabled="isSavingEdit" class="bg-zinc-950 text-white">
+                            <Loader v-if="isSavingEdit" class="animate-spin mr-2" :size="14" />
+                            Enregistrer
                         </Button>
                     </div>
                 </form>

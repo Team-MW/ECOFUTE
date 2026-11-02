@@ -46,9 +46,16 @@ interface Client {
     documents: any[]
 }
 
+interface Expense {
+    id: number
+    amount: number
+    date: string
+}
+
 // --- State ---
 const sales = ref<Sale[]>([])
 const clients = ref<Client[]>([])
+const expenses = ref<Expense[]>([])
 const isLoading = ref(true)
 const isDemoMode = ref(false)
 const showEmptyState = computed(() => !isLoading.value && sales.value.length === 0 && clients.value.length === 0 && !isDemoMode.value)
@@ -58,12 +65,15 @@ onMounted(async () => {
     try {
         const promises: Promise<any>[] = [axios.get('/api/clients')]
         if (isAdmin.value) {
-            promises.push(axios.get('/api/sales'))
+            promises.push(axios.get('/api/sales'), axios.get('/api/expenses').catch(() => ({ data: [] })))
         }
         const results = await Promise.all(promises)
         clients.value = results[0].data
         if (isAdmin.value && results[1]) {
             sales.value = results[1].data
+        }
+        if (isAdmin.value && results[2]) {
+            expenses.value = results[2].data
         }
     } catch (error) {
         console.error("Error fetching stats data:", error)
@@ -154,6 +164,61 @@ const weeklyPendingRevenue = computed(() => {
         .reduce((sum, sale) => sum + sale.amount, 0)
 })
 
+const startOfDay = (date = new Date()) => {
+    const value = new Date(date)
+    value.setHours(0, 0, 0, 0)
+    return value
+}
+
+const isSameDay = (dateValue: string | Date, day: Date) => {
+    const date = new Date(dateValue)
+    return date.getFullYear() === day.getFullYear()
+        && date.getMonth() === day.getMonth()
+        && date.getDate() === day.getDate()
+}
+
+const paidSalesOn = (day: Date) => sales.value.filter(sale => sale.status === 'Payé' && isSameDay(sale.date, day))
+
+const today = computed(() => startOfDay())
+const yesterday = computed(() => {
+    const date = startOfDay()
+    date.setDate(date.getDate() - 1)
+    return date
+})
+
+const dailyRevenue = computed(() => paidSalesOn(today.value).reduce((sum, sale) => sum + sale.amount, 0))
+const yesterdayRevenue = computed(() => paidSalesOn(yesterday.value).reduce((sum, sale) => sum + sale.amount, 0))
+const dailySalesCount = computed(() => paidSalesOn(today.value).length)
+const dailyAverageTicket = computed(() => dailySalesCount.value ? dailyRevenue.value / dailySalesCount.value : 0)
+const dailyClientsCount = computed(() => clients.value.filter(client => isSameDay(client.createdAt, today.value)).length)
+const dailyExpenses = computed(() =>
+    expenses.value.filter(expense => isSameDay(expense.date, today.value)).reduce((sum, expense) => sum + (expense.amount || 0), 0)
+)
+const dailyNet = computed(() => dailyRevenue.value - dailyExpenses.value)
+const dailyChange = computed(() => {
+    if (yesterdayRevenue.value === 0) return dailyRevenue.value > 0 ? 100 : 0
+    return ((dailyRevenue.value - yesterdayRevenue.value) / yesterdayRevenue.value) * 100
+})
+
+const monthlyRevenue = computed(() => {
+    const now = new Date()
+    return sales.value
+        .filter(sale => {
+            if (sale.status !== 'Payé') return false
+            const date = new Date(sale.date)
+            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+        })
+        .reduce((sum, sale) => sum + sale.amount, 0)
+})
+
+const monthlySalesCount = computed(() => {
+    const now = new Date()
+    return sales.value.filter(sale => {
+        const date = new Date(sale.date)
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+    }).length
+})
+
 const activeClientsCount = computed(() => clients.value.filter(c => c.status === 'Validé').length)
 const pendingClientsCount = computed(() => clients.value.filter(c => c.status === 'En attente').length)
 
@@ -209,6 +274,73 @@ const revenueChartData = computed(() => {
             tension: 0.4,
             pointRadius: 4,
             pointHoverRadius: 6
+        }]
+    }
+})
+
+const dailyRevenueChartData = computed(() => {
+    const labels: string[] = []
+    const revenue: number[] = []
+    const costs: number[] = []
+    const now = new Date()
+
+    for (let i = 13; i >= 0; i--) {
+        const day = startOfDay(now)
+        day.setDate(now.getDate() - i)
+        labels.push(day.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }))
+        revenue.push(paidSalesOn(day).reduce((sum, sale) => sum + sale.amount, 0))
+        costs.push(
+            expenses.value
+                .filter(expense => isSameDay(expense.date, day))
+                .reduce((sum, expense) => sum + (expense.amount || 0), 0)
+        )
+    }
+
+    return {
+        labels,
+        datasets: [
+            {
+                label: 'Encaissé (€)',
+                borderColor: '#000000',
+                backgroundColor: 'rgba(0, 0, 0, 0.08)',
+                data: revenue,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 3
+            },
+            {
+                label: 'Dépenses (€)',
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                data: costs,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 3
+            }
+        ]
+    }
+})
+
+const weeklySalesCountChartData = computed(() => {
+    const labels: string[] = []
+    const counts: number[] = []
+    const now = new Date()
+
+    for (let i = 6; i >= 0; i--) {
+        const day = startOfDay(now)
+        day.setDate(now.getDate() - i)
+        labels.push(day.toLocaleDateString('fr-FR', { weekday: 'short' }))
+        counts.push(sales.value.filter(sale => isSameDay(sale.date, day)).length)
+    }
+
+    return {
+        labels,
+        datasets: [{
+            label: 'Ventes',
+            backgroundColor: '#18181b',
+            data: counts,
+            borderRadius: 4,
+            barPercentage: 0.55
         }]
     }
 })
@@ -277,6 +409,14 @@ const lineChartOptions = {
             ticks: { font: { size: 10 }, color: '#a1a1aa' },
             border: { display: false }
         }
+    }
+}
+
+const dailyLineChartOptions = {
+    ...lineChartOptions,
+    plugins: {
+        ...lineChartOptions.plugins,
+        legend: { display: true, position: 'bottom' as const, labels: { boxWidth: 8, font: { size: 11 } } }
     }
 }
 
@@ -353,10 +493,35 @@ const formatCurrency = (val: number) => {
 
         <!-- Main Dashboard Content -->
         <div v-else class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm">
+                    <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Encaissé aujourd'hui</h3>
+                    <p class="text-3xl font-bold text-black tracking-tight">{{ formatCurrency(dailyRevenue) }}</p>
+                    <p class="text-xs mt-2" :class="dailyChange >= 0 ? 'text-green-600' : 'text-red-500'">
+                        {{ dailyChange >= 0 ? '+' : '' }}{{ dailyChange.toFixed(0) }}% vs hier ({{ formatCurrency(yesterdayRevenue) }})
+                    </p>
+                </div>
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm">
+                    <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Ventes du jour</h3>
+                    <p class="text-3xl font-bold text-black tracking-tight">{{ dailySalesCount }}</p>
+                    <p class="text-xs text-zinc-500 mt-2">Ticket moyen {{ formatCurrency(dailyAverageTicket) }}</p>
+                </div>
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm">
+                    <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Dépenses du jour</h3>
+                    <p class="text-3xl font-bold text-black tracking-tight">{{ formatCurrency(dailyExpenses) }}</p>
+                    <p class="text-xs text-zinc-500 mt-2">Net du jour {{ formatCurrency(dailyNet) }}</p>
+                </div>
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm">
+                    <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Nouveaux clients</h3>
+                    <p class="text-3xl font-bold text-black tracking-tight">{{ dailyClientsCount }}</p>
+                    <p class="text-xs text-zinc-500 mt-2">Créés aujourd'hui</p>
+                </div>
+            </div>
+
             <!-- Header Stats Cards -->
-            <div :class="`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4`">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Revenue Card -->
-                <div v-if="isAdmin" class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Revenu Total</h3>
                         <div class="p-2 bg-green-50 rounded-full group-hover:bg-green-100 transition-colors">
@@ -369,8 +534,21 @@ const formatCurrency = (val: number) => {
                     </div>
                 </div>
 
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">CA du mois</h3>
+                        <div class="p-2 bg-zinc-50 rounded-full">
+                            <Euro :size="16" class="text-zinc-700" />
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="text-3xl font-bold text-black tracking-tight">{{ formatCurrency(monthlyRevenue) }}</span>
+                        <span class="text-xs text-zinc-500 mb-1.5">{{ monthlySalesCount }} ventes</span>
+                    </div>
+                </div>
+
                 <!-- Weekly Revenue Card -->
-                <div v-if="isAdmin" class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm hover:border-black transition-all group">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">CA de la Semaine</h3>
                         <div class="p-2 bg-emerald-50 rounded-full group-hover:bg-emerald-100 transition-colors">
@@ -420,10 +598,30 @@ const formatCurrency = (val: number) => {
                 </div>
             </div>
 
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white p-6 border border-zinc-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="font-bold text-zinc-900 flex items-center gap-2">
+                            <TrendingUp :size="18" /> Activité journalière
+                        </h3>
+                        <div class="text-xs font-medium bg-zinc-100 px-2 py-1 rounded-sm text-zinc-600">14 derniers jours</div>
+                    </div>
+                    <div class="h-[300px] w-full">
+                        <Line :data="dailyRevenueChartData" :options="dailyLineChartOptions" />
+                    </div>
+                </div>
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm">
+                    <h3 class="font-bold text-zinc-900 mb-6">Ventes par jour</h3>
+                    <div class="h-[300px]">
+                        <Bar :data="weeklySalesCountChartData" :options="{ ...barChartOptions, indexAxis: 'x' }" />
+                    </div>
+                </div>
+            </div>
+
             <!-- Charts Section -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Main Revenue Chart -->
-                <div v-if="isAdmin" class="lg:col-span-2 bg-white p-6 border border-zinc-200 shadow-sm">
+                <div class="lg:col-span-2 bg-white p-6 border border-zinc-200 shadow-sm">
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="font-bold text-zinc-900 flex items-center gap-2">
                             <TrendingUp :size="18" /> Évolution du Chiffre d'Affaires
@@ -436,7 +634,7 @@ const formatCurrency = (val: number) => {
                 </div>
 
                 <!-- Status Distribution -->
-                <div :class="`bg-white p-6 border border-zinc-200 shadow-sm flex flex-col ${isAdmin ? '' : 'lg:col-span-3'}`">
+                <div class="bg-white p-6 border border-zinc-200 shadow-sm flex flex-col">
                     <h3 class="font-bold text-zinc-900 mb-6 flex items-center gap-2">
                         <CheckCircle :size="18" /> Statut des Clients
                     </h3>
@@ -454,7 +652,7 @@ const formatCurrency = (val: number) => {
             </div>
 
             <!-- Sales Status Bar Chart -->
-            <div v-if="isAdmin" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-white p-6 border border-zinc-200 shadow-sm">
                     <h3 class="font-bold text-zinc-900 mb-6">État des Ventes</h3>
                     <div class="h-[200px]">

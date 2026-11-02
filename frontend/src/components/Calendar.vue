@@ -26,6 +26,14 @@ interface TeamMember {
     color: string
 }
 
+const TIME_SLOTS = Array.from({ length: 14 }, (_, i) => {
+    const startHour = 7 + i
+    const endHour = startHour + 1
+    const start = `${String(startHour).padStart(2, '0')}:00`
+    const end = `${String(endHour).padStart(2, '0')}:00`
+    return { start, end, label: `${start} – ${end}` }
+})
+
 // State
 const { user } = useUser()
 const currentDate = ref(new Date())
@@ -249,6 +257,17 @@ const eventsForSelectedDate = computed(() => {
     })
 })
 
+const selectedDaySlots = computed(() => {
+    return TIME_SLOTS.map(slot => ({
+        ...slot,
+        event: eventsForSelectedDate.value.find(event => normalizeTime(event.time) === slot.start) || null
+    }))
+})
+
+const firstFreeSlot = computed(() => {
+    return selectedDaySlots.value.find(slot => !slot.event)?.start || '07:00'
+})
+
 // Methods
 const previousMonth = () => {
     currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() - 1, 1)
@@ -289,15 +308,35 @@ const getEventsForDate = (date: Date | null) => {
     })
 }
 
-const openNewEventDialog = () => {
+const toLocalDateInput = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
+const normalizeTime = (time?: string | null) => {
+    if (!time) return ''
+    const match = time.match(/(\d{1,2})/)
+    if (!match) return time
+    return `${String(parseInt(match[1], 10)).padStart(2, '0')}:00`
+}
+
+const formatSlotLabel = (time?: string | null) => {
+    const start = normalizeTime(time)
+    const slot = TIME_SLOTS.find(item => item.start === start)
+    return slot?.label || time || ''
+}
+
+const openNewEventDialog = (time?: string) => {
     editingEvent.value = null
-    // Initialize form
     const userColor = (user.value?.publicMetadata as any)?.color || '#3b82f6'
+    const dateValue = selectedDate.value ? toLocalDateInput(selectedDate.value) : toLocalDateInput(new Date())
 
     eventForm.value = {
         title: '',
-        date: (selectedDate.value ? selectedDate.value.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]) || '',
-        time: '',
+        date: dateValue,
+        time: time || firstFreeSlot.value,
         description: '',
         color: userColor,
         assignedTo: ''
@@ -305,13 +344,21 @@ const openNewEventDialog = () => {
     showEventDialog.value = true
 }
 
+const openSlot = (slot: { start: string, event: CalendarEvent | null }) => {
+    if (slot.event) {
+        openEditEventDialog(slot.event)
+        return
+    }
+    openNewEventDialog(slot.start)
+}
+
 const openEditEventDialog = (event: CalendarEvent) => {
     editingEvent.value = { ...event }
     // Initialize form with event data
     eventForm.value = {
         title: event.title || '',
-        date: (event.date instanceof Date ? event.date.toISOString().split('T')[0] : new Date(event.date).toISOString().split('T')[0]) || '',
-        time: event.time || '',
+        date: toLocalDateInput(event.date instanceof Date ? event.date : new Date(event.date)),
+        time: normalizeTime(event.time) || firstFreeSlot.value,
         description: event.description || '',
         color: event.color,
         assignedTo: event.assignedTo || ''
@@ -451,7 +498,7 @@ const saveCustomization = (e: Event) => {
                                         color: '#18181b'
                                     }"
                                 >
-                                    <span class="truncate">{{ event.title }}</span>
+                                    <span class="truncate">{{ event.time ? formatSlotLabel(event.time).split(' – ')[0] + ' ' : '' }}{{ event.title }}</span>
                                     <span v-if="event.assignedTo" class="shrink-0 text-[7px] font-bold px-1 py-0.2 rounded bg-white/80 border border-zinc-200 text-zinc-500 font-mono">
                                         {{ getMemberInitials(event.assignedTo) }}
                                     </span>
@@ -485,60 +532,72 @@ const saveCustomization = (e: Event) => {
                     <p class="text-sm text-zinc-500 mt-1 capitalize">
                          {{ selectedDate ? selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric' }) : '' }}
                     </p>
+                    <p v-if="selectedDate" class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mt-2">
+                        Créneaux de 1h · 07:00 – 21:00
+                    </p>
                 </div>
 
-                <div class="flex-1 overflow-auto p-4 space-y-3 bg-white">
-                    <div v-if="eventsForSelectedDate.length === 0" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 p-8">
+                <div class="flex-1 overflow-auto bg-white">
+                    <div v-if="!selectedDate" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 p-8">
                         <div class="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
                             <CalendarIcon class="text-zinc-300" :size="24" />
                         </div>
-                        <p class="font-medium text-zinc-900 mb-1">Aucun événement</p>
-                        <p class="text-xs">Aucun événement prévu pour cette journée.</p>
-                        <Button @click="openNewEventDialog" variant="link" class="text-black text-xs mt-2 underline-offset-4">Créer un événement</Button>
+                        <p class="font-medium text-zinc-900 mb-1">Sélectionnez un jour</p>
+                        <p class="text-xs">Choisissez une date pour poser un rendez-vous d'1h.</p>
                     </div>
 
-                    <div 
-                        v-for="event in eventsForSelectedDate" 
-                        :key="event.id"
-                        class="group relative bg-white border border-zinc-100 hover:border-zinc-300 p-4 shadow-sm hover:shadow-md transition-all duration-200"
-                        :style="{ borderLeft: `3px solid ${event.color}` }"
-                    >
-                        <div class="flex items-start justify-between mb-2">
-                             <div class="flex-1">
-                                 <h4 class="font-bold text-sm text-zinc-900">{{ event.title }}</h4>
-                                 
-                                 <!-- Assignee info -->
-                                 <div v-if="event.assignedTo" class="flex items-center gap-1.5 mt-1">
-                                     <span 
-                                         class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                                         :style="{ backgroundColor: getMemberColor(event.assignedTo) + '15', color: getMemberColor(event.assignedTo) }"
-                                     >
-                                         <span class="w-1 h-1 rounded-full" :style="{ backgroundColor: getMemberColor(event.assignedTo) }"></span>
-                                         Assigné à : {{ getMemberName(event.assignedTo) }}
-                                     </span>
-                                 </div>
-                             </div>
-                             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-3 right-3 bg-white pl-2">
-                                <Button @click="openEditEventDialog(event)" variant="ghost" size="sm" class="h-6 w-6 p-0 hover:bg-zinc-100 rounded-sm">
-                                    <Edit2 :size="12" />
-                                </Button>
-                                <Button @click="deleteEvent(event.id)" variant="ghost" size="sm" class="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-sm">
-                                    <Trash2 :size="12" />
-                                </Button>
+                    <div v-else class="divide-y divide-zinc-100">
+                        <button
+                            v-for="slot in selectedDaySlots"
+                            :key="slot.start"
+                            type="button"
+                            class="w-full text-left px-4 py-3 flex items-start gap-3 transition-colors"
+                            :class="slot.event ? 'hover:bg-zinc-50' : 'hover:bg-zinc-50/80'"
+                            @click="openSlot(slot)"
+                        >
+                            <div class="w-[88px] shrink-0 pt-0.5">
+                                <div class="flex items-center gap-1 text-[11px] font-mono font-semibold text-zinc-500">
+                                    <Clock :size="11" />
+                                    {{ slot.start }}
+                                </div>
+                                <div class="text-[10px] text-zinc-400 font-mono pl-4">{{ slot.end }}</div>
                             </div>
-                        </div>
-                        
-                        <div class="flex items-center gap-4 text-xs text-zinc-500 mb-3">
-                            <div v-if="event.time" class="flex items-center gap-1.5 bg-zinc-50 px-2 py-1 rounded-sm">
-                                <Clock :size="12" /> 
-                                <span class="font-mono">{{ event.time }}</span>
-                            </div>
-                        </div>
 
-                        <p v-if="event.description" class="text-xs text-zinc-600 leading-relaxed border-t border-zinc-50 pt-3 flex gap-2">
-                            <AlignLeft :size="12" class="mt-0.5 shrink-0 text-zinc-400" />
-                            {{ event.description }}
-                        </p>
+                            <div
+                                v-if="slot.event"
+                                class="flex-1 min-w-0 border-l-2 pl-3 py-0.5"
+                                :style="{ borderColor: slot.event.color }"
+                            >
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-bold text-zinc-900 truncate">{{ slot.event.title }}</p>
+                                        <p v-if="slot.event.assignedTo" class="text-[10px] text-zinc-500 mt-0.5 truncate">
+                                            {{ getMemberName(slot.event.assignedTo) }}
+                                        </p>
+                                    </div>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        <button
+                                            type="button"
+                                            class="h-6 w-6 flex items-center justify-center text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-sm"
+                                            @click.stop="openEditEventDialog(slot.event)"
+                                        >
+                                            <Edit2 :size="12" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="h-6 w-6 flex items-center justify-center text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-sm"
+                                            @click.stop="deleteEvent(slot.event.id)"
+                                        >
+                                            <Trash2 :size="12" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-else class="flex-1 min-w-0 border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-400">
+                                Libre — cliquer pour fixer 1h
+                            </div>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -593,8 +652,16 @@ const saveCustomization = (e: Event) => {
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1.5">
-                            <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Heure</label>
-                            <Input v-model="eventForm.time" type="time" class="rounded-xl border-zinc-300 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 bg-white text-black font-medium" />
+                            <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Créneau (1h)</label>
+                            <select
+                                v-model="eventForm.time"
+                                required
+                                class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-xl shadow-sm focus:border-zinc-950 outline-none bg-white text-black font-medium"
+                            >
+                                <option v-for="slot in TIME_SLOTS" :key="slot.start" :value="slot.start">
+                                    {{ slot.label }}
+                                </option>
+                            </select>
                         </div>
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Couleur</label>

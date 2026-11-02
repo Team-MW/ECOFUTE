@@ -29,6 +29,7 @@ interface Client {
     email: string
     company?: string
     address?: string
+    addressComplement?: string
     city?: string
     zipCode?: string
     phone?: string
@@ -103,6 +104,7 @@ const handleClientSelect = () => {
         // Format address: "123 Rue, 75000 Paris"
         const parts = []
         if (client.address) parts.push(client.address)
+        if (client.addressComplement) parts.push(client.addressComplement)
         
         const zipCity = []
         if (client.zipCode) zipCity.push(client.zipCode)

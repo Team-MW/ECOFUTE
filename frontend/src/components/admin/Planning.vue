@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUser } from '@clerk/vue'
 import { ChevronLeft, ChevronRight, Plus, Clock, User, Filter, Copy, RefreshCw, MoreVertical } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ interface TeamMember {
     lastName: string
     email: string
     color: string
+    role?: string
 }
 
 // State
@@ -106,7 +107,7 @@ const saveEvent = async () => {
             time: timeString,
             description: formData.description,
             color: eventColor,
-            assignedTo: formData.assignedTo || null,
+            assignedTo: isAlternant.value ? (user.value?.id || null) : (formData.assignedTo || null),
             type: 'planning'
         }
 
@@ -284,24 +285,64 @@ const getEventsForCell = (memberId: string | null, date: Date) => {
 // What about unassigned events?
 // Let's add an "Unassigned" row at the top?
 
+const ADMIN_EMAILS = ['ecomaxifute@gmail.com', 'sofianelamine772@gmail.com']
+
+const currentUserRole = computed(() => {
+    const email = user.value?.emailAddresses?.[0]?.emailAddress
+    if (email && ADMIN_EMAILS.includes(email)) return 'admin'
+    return (user.value?.publicMetadata as any)?.role || 'membre'
+})
+
+const isAlternant = computed(() => currentUserRole.value === 'alternant')
+
+const visibleTeamMembers = computed(() => {
+    if (!isAlternant.value) return teamMembers.value
+    const myId = user.value?.id
+    const mine = teamMembers.value.filter(m => m.id === myId)
+    if (mine.length > 0) return mine
+    if (!user.value) return []
+    return [{
+        id: user.value.id,
+        firstName: user.value.firstName || '',
+        lastName: user.value.lastName || '',
+        email: user.value.emailAddresses?.[0]?.emailAddress || '',
+        color: (user.value.publicMetadata as any)?.color || '#3b82f6',
+        role: 'alternant'
+    }]
+})
+
+watch(isAlternant, (locked) => {
+    if (locked && user.value?.id) {
+        filterEmployeeId.value = user.value.id
+    }
+}, { immediate: true })
+
 const displayedRows = computed(() => {
     let rows = []
-    
-    // 1. Unassigned Row
-    // Actually, forcing assignment is better for "Real Planning". 
-    // But let's keep unassigned just in case.
-    rows.push({ id: null, name: 'Non assigné', color: '#e4e4e7', isHeader: false })
 
-    // 2. Team Members
+    if (!isAlternant.value) {
+        rows.push({ id: null, name: 'Non assigné', color: '#e4e4e7', isHeader: false })
+    }
+
+    if (isAlternant.value) {
+        rows.push(...visibleTeamMembers.value.map(m => ({
+            id: m.id,
+            name: `${m.firstName} ${m.lastName}`,
+            color: m.color,
+            isHeader: false
+        })))
+        return rows
+    }
+
     if (filterEmployeeId.value === 'all') {
-        rows.push(...teamMembers.value.map(m => ({
+        rows.push(...visibleTeamMembers.value.map(m => ({
             id: m.id,
             name: `${m.firstName} ${m.lastName}`,
             color: m.color,
             isHeader: false
         })))
     } else {
-        const m = teamMembers.value.find(tm => tm.id === filterEmployeeId.value)
+        const m = visibleTeamMembers.value.find(tm => tm.id === filterEmployeeId.value)
         if (m) {
             rows.push({
                 id: m.id,
@@ -329,7 +370,9 @@ const openNewEventDialog = (userId?: string | null, date?: Date) => {
         endTime: '17:00',
         description: '',
         color: userColor,
-        assignedTo: userId || (filterEmployeeId.value !== 'all' ? filterEmployeeId.value : ''),
+        assignedTo: isAlternant.value
+            ? (user.value?.id || '')
+            : (userId || (filterEmployeeId.value !== 'all' ? filterEmployeeId.value : '')),
         recurrence: false,
         recurrenceEndDate: ''
     }
@@ -426,18 +469,21 @@ const getMemberWeeklyStats = (memberId: string | null) => {
             </div>
 
             <div class="flex items-center gap-3">
+                <div v-if="isAlternant" class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 bg-zinc-100 px-3 py-2 rounded-xl">
+                    Planning personnel
+                </div>
                 <!-- Filter -->
-                <div class="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm">
+                <div v-else class="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm">
                     <Filter :size="14" class="absolute left-3 text-zinc-400" />
                     <select v-model="filterEmployeeId" class="pl-9 pr-8 py-2 h-9 text-xs font-bold uppercase tracking-wider bg-transparent outline-none cursor-pointer appearance-none min-w-[150px]">
                         <option value="all">Tous les employés</option>
-                        <option v-for="member in teamMembers" :key="member.id" :value="member.id">
+                        <option v-for="member in visibleTeamMembers" :key="member.id" :value="member.id">
                             {{ member.firstName }} {{ member.lastName }}
                         </option>
                     </select>
                 </div>
 
-                <div class="relative">
+                <div v-if="!isAlternant" class="relative">
                     <Button @click="showOptionsDialog = !showOptionsDialog" variant="outline" class="h-9 px-3 rounded-xl border-zinc-200 hover:bg-zinc-50 shadow-sm transition-all hover:scale-105 active:scale-95">
                         <MoreVertical :size="16" />
                     </Button>
@@ -455,7 +501,7 @@ const getMemberWeeklyStats = (memberId: string | null) => {
                     </div>
                 </div>
 
-                <Button @click="openNewEventDialog()" class="bg-zinc-950 text-white hover:bg-zinc-900 rounded-xl h-9 text-xs uppercase font-bold tracking-widest shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
+                <Button v-if="!isAlternant" @click="openNewEventDialog()" class="bg-zinc-950 text-white hover:bg-zinc-900 rounded-xl h-9 text-xs uppercase font-bold tracking-widest shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
                     <Plus :size="14" class="mr-2" /> Shift
                 </Button>
             </div>
@@ -495,7 +541,7 @@ const getMemberWeeklyStats = (memberId: string | null) => {
                                     </div>
                                     <div class="min-w-0">
                                         <p class="text-xs font-extrabold text-zinc-900 truncate" :title="row.name">{{ row.name }}</p>
-                                        <p class="text-[10px] font-medium text-zinc-400 truncate mt-0.5">{{ row.id ? 'Membre' : 'À planifier' }}</p>
+                                        <p class="text-[10px] font-medium text-zinc-400 truncate mt-0.5">{{ isAlternant ? 'Votre planning' : (row.id ? 'Membre' : 'À planifier') }}</p>
                                     </div>
                                 </div>
                                 <!-- Micro Stats -->
@@ -524,8 +570,10 @@ const getMemberWeeklyStats = (memberId: string | null) => {
                                 </div>
 
                                 <!-- Add Shift Button (+ Hover) -->
-                                <button @click="openNewEventDialog(row.id, day)" 
-                                        class="opacity-0 group-hover/cell:opacity-100 absolute inset-0 m-auto w-8 h-8 rounded-full bg-zinc-950 text-white hover:bg-zinc-800 shadow-md flex items-center justify-center transition-all scale-75 group-hover/cell:scale-100 z-10">
+                                <button
+                                    v-if="!isAlternant"
+                                    @click="openNewEventDialog(row.id, day)" 
+                                    class="opacity-0 group-hover/cell:opacity-100 absolute inset-0 m-auto w-8 h-8 rounded-full bg-zinc-950 text-white hover:bg-zinc-800 shadow-md flex items-center justify-center transition-all scale-75 group-hover/cell:scale-100 z-10">
                                     <Plus :size="14" />
                                 </button>
                             </div>
@@ -555,10 +603,11 @@ const getMemberWeeklyStats = (memberId: string | null) => {
                         <div class="relative">
                             <select 
                                 v-model="eventForm.assignedTo" 
-                                class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-xl shadow-sm focus:border-zinc-950 outline-none appearance-none bg-white text-black font-medium"
+                                :disabled="isAlternant"
+                                class="w-full px-3 py-2 text-sm border border-zinc-300 rounded-xl shadow-sm focus:border-zinc-950 outline-none appearance-none bg-white text-black font-medium disabled:opacity-60"
                             >
-                                <option value="">-- Non Assigné --</option>
-                                <option v-for="member in teamMembers" :key="member.id" :value="member.id">
+                                <option v-if="!isAlternant" value="">-- Non Assigné --</option>
+                                <option v-for="member in visibleTeamMembers" :key="member.id" :value="member.id">
                                     {{ member.firstName }} {{ member.lastName }}
                                 </option>
                             </select>

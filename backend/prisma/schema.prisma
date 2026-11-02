@@ -14,12 +14,18 @@ model Client {
   firstName String
   lastName  String
   company   String?
-  address   String?
-  city      String?
-  zipCode   String?
-  phone     String?
-  siret     String?
-  tvaNumber String?
+
+  address            String?
+  addressComplement  String?
+  city               String?
+  zipCode            String?
+  phone              String?
+  siret              String?
+  tvaNumber          String?
+  birthDate          DateTime? @db.Date
+  birthPlace         String?
+  nationality        String?
+  notes              String?   @db.Text
   
   status    String   @default("En attente")
   createdAt DateTime @default(now())
@@ -79,6 +85,7 @@ model Sale {
   amount      Float    // Value of the sale
   date        DateTime // Date of the sale
   status      String   @default("Payé") // Payé, En attente, Annulé
+  service     String?  // PAPERASSE | TEXTILE | SERRURERIE | SIV | REPROGRAPHIE
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -127,4 +134,42 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   sales       Sale[]
+}
+
+model Textile {
+  id          Int      @id @default(autoincrement())
+  name        String
+  size        String?
+  color       String?
+  quantity    Int      @default(0)
+  price       Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Serrurerie {
+  id          Int      @id @default(autoincrement())
+  name        String
+  reference   String?
+  quantity    Int      @default(0)
+  price       Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Expense {
+  id          Int      @id @default(autoincrement())
+  title       String
+  amount      Float    @default(0)
+  date        DateTime
+  type        String   @default("facture") // facture | ticket | note
+  notes       String?  @db.Text
+  fileName    String?
+  fileUrl     String?
+  fileType    String?
+  fileSize    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

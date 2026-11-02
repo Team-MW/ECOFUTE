@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge'
 import * as XLSX from 'xlsx'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
+import ExpenseManager from '@/components/admin/ExpenseManager.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
 
 interface Sale {
@@ -17,6 +18,7 @@ interface Sale {
     amount: number
     date: string
     status: string
+    service?: string | null
     hiboutikId?: number | null
 }
 
@@ -27,12 +29,13 @@ interface Client {
     company?: string
 }
 
-interface Product {
-    id: number
-    name: string
-    price: number
-    hiboutikId?: number | null
-}
+const SERVICE_OPTIONS = [
+    'PAPERASSE',
+    'TEXTILE',
+    'SERRURERIE',
+    'SIV',
+    'REPROGRAPHIE',
+] as const
 
 // State
 const sales = ref<Sale[]>([])
@@ -42,11 +45,15 @@ const showSaleDialog = ref(false)
 const editingSale = ref<Sale | null>(null)
 const searchTerm = ref('')
 const currentMonth = ref(new Date())
+const periodMode = ref<'month' | 'day'>('month')
+const currentDay = ref(new Date())
+const activeTab = ref<'ventes' | 'depenses'>('ventes')
+
+const periodDate = computed(() => periodMode.value === 'day' ? currentDay.value : currentMonth.value)
 
 const isExistingClient = ref(true)
 const selectedClientId = ref<string>('')
-const products = ref<Product[]>([])
-const selectedProductId = ref<string>('')
+const selectedService = ref<string>('')
 
 const saleForm = ref({
     title: '',
@@ -60,7 +67,6 @@ const saleForm = ref({
 onMounted(() => {
     fetchSales()
     fetchClients()
-    fetchProducts()
 })
 
 // API Interactions
@@ -85,23 +91,13 @@ const fetchClients = async () => {
     }
 }
 
-const fetchProducts = async () => {
-    try {
-        const res = await axios.get('/api/products')
-        products.value = res.data
-    } catch (err) {
-        console.error("Failed to fetch products", err)
-    }
-}
-
 const saveSale = async () => {
     isLoading.value = true
     try {
         let finalTitle = saleForm.value.title
         if (!finalTitle) {
-            if (selectedProductId.value) {
-                const product = products.value.find(p => p.id.toString() === selectedProductId.value)
-                if (product) finalTitle = product.name
+            if (selectedService.value) {
+                finalTitle = selectedService.value
             }
             if (!finalTitle && isExistingClient.value && selectedClientId.value) {
                 const client = clients.value.find(c => c.id.toString() === selectedClientId.value)
@@ -116,8 +112,8 @@ const saveSale = async () => {
             amount: parseFloat(saleForm.value.amount),
             date: saleForm.value.date,
             status: saleForm.value.status,
-            clientId: isExistingClient.value && selectedClientId.value ? selectedClientId.value : undefined,
-            productId: selectedProductId.value || undefined
+            service: selectedService.value || null,
+            clientId: isExistingClient.value && selectedClientId.value ? selectedClientId.value : undefined
         }
 
         if (editingSale.value) {
@@ -167,7 +163,7 @@ const resetForm = () => {
         status: 'Payé'
     }
     selectedClientId.value = ''
-    selectedProductId.value = ''
+    selectedService.value = ''
     isExistingClient.value = true
 }
 
@@ -178,13 +174,9 @@ const handleClientSelect = () => {
     }
 }
 
-const handleProductSelect = () => {
-    const product = products.value.find(p => p.id.toString() === selectedProductId.value)
-    if (product) {
-        saleForm.value.amount = product.price.toString()
-        if (!isExistingClient.value && !saleForm.value.title) {
-            saleForm.value.title = product.name
-        }
+const handleServiceSelect = () => {
+    if (selectedService.value && !isExistingClient.value && !saleForm.value.title) {
+        saleForm.value.title = selectedService.value
     }
 }
 
@@ -203,6 +195,7 @@ const openEditSaleDialog = (sale: Sale) => {
         date: new Date(sale.date).toISOString().split('T')[0],
         status: sale.status
     }
+    selectedService.value = sale.service || ''
     // Check if title matches a client to pre-select? OPTIONAL
     // For now, simpler to treat edit as "Manual" or just keep title as is.
     isExistingClient.value = false 
@@ -222,6 +215,7 @@ const exportToExcel = () => {
     // Prepare data directly from sales state (all sales, not just filtered)
     const dataToExport = sales.value.map(sale => ({
         ID: sale.id,
+        Service: sale.service || '',
         Titre: sale.title,
         Description: sale.description || '',
         Montant: sale.amount,
@@ -240,13 +234,26 @@ const exportToExcel = () => {
     XLSX.writeFile(workbook, `Ventes_EcoFute_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-// Month Navigation
-const previousMonth = () => {
+const previousPeriod = () => {
+    if (periodMode.value === 'day') {
+        currentDay.value = new Date(currentDay.value.getFullYear(), currentDay.value.getMonth(), currentDay.value.getDate() - 1)
+        return
+    }
     currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1)
 }
 
-const nextMonth = () => {
+const nextPeriod = () => {
+    if (periodMode.value === 'day') {
+        currentDay.value = new Date(currentDay.value.getFullYear(), currentDay.value.getMonth(), currentDay.value.getDate() + 1)
+        return
+    }
     currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1)
+}
+
+const goToToday = () => {
+    const today = new Date()
+    currentDay.value = today
+    currentMonth.value = new Date(today.getFullYear(), today.getMonth(), 1)
 }
 
 // Computed
@@ -254,18 +261,38 @@ const currentMonthLabel = computed(() => {
     return currentMonth.value.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
 })
 
+const periodLabel = computed(() => {
+    if (periodMode.value === 'day') {
+        return currentDay.value.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    }
+    return currentMonthLabel.value
+})
+
 const filteredSales = computed(() => {
     return sales.value.filter(sale => {
         const saleDate = new Date(sale.date)
-        const matchesMonth = saleDate.getMonth() === currentMonth.value.getMonth() && 
-                           saleDate.getFullYear() === currentMonth.value.getFullYear()
-        const matchesSearch = sale.title.toLowerCase().includes(searchTerm.value.toLowerCase())
-        return matchesMonth && matchesSearch
+        const matchesPeriod = periodMode.value === 'day'
+            ? saleDate.getFullYear() === currentDay.value.getFullYear()
+                && saleDate.getMonth() === currentDay.value.getMonth()
+                && saleDate.getDate() === currentDay.value.getDate()
+            : saleDate.getMonth() === currentMonth.value.getMonth()
+                && saleDate.getFullYear() === currentMonth.value.getFullYear()
+        const q = searchTerm.value.toLowerCase()
+        const matchesSearch =
+            sale.title.toLowerCase().includes(q) ||
+            (sale.service || '').toLowerCase().includes(q)
+        return matchesPeriod && matchesSearch
     })
 })
 
+const collectedSales = computed(() => filteredSales.value.filter(sale => sale.status === 'Payé'))
+
 const totalSales = computed(() => {
     return filteredSales.value.reduce((sum, sale) => sum + sale.amount, 0)
+})
+
+const totalCollected = computed(() => {
+    return collectedSales.value.reduce((sum, sale) => sum + sale.amount, 0)
 })
 
 const salesCount = computed(() => filteredSales.value.length)
@@ -279,44 +306,79 @@ const salesCount = computed(() => filteredSales.value.length)
                 <h2 class="text-3xl font-bold text-zinc-900 tracking-tight flex items-center gap-3">
                     Suivi des Ventes
                     <Badge variant="outline" class="text-xs font-normal bg-zinc-50 border-zinc-200">
-                        {{ currentMonthLabel }}
+                        {{ periodLabel }}
                     </Badge>
                 </h2>
-                <p class="text-sm text-zinc-500 mt-1">Gérez et suivez vos revenus mensuels.</p>
+                <p class="text-sm text-zinc-500 mt-1">Caisse visible uniquement par les administrateurs.</p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="flex items-center border border-zinc-200 rounded-sm overflow-hidden">
+                    <button
+                        type="button"
+                        class="h-9 px-3 text-[10px] font-bold uppercase tracking-wider"
+                        :class="periodMode === 'month' ? 'bg-black text-white' : 'bg-white text-zinc-500'"
+                        @click="periodMode = 'month'"
+                    >Mois</button>
+                    <button
+                        type="button"
+                        class="h-9 px-3 text-[10px] font-bold uppercase tracking-wider border-l border-zinc-200"
+                        :class="periodMode === 'day' ? 'bg-black text-white' : 'bg-white text-zinc-500'"
+                        @click="periodMode = 'day'"
+                    >Jour</button>
+                </div>
                  <div class="flex items-center border border-zinc-200 bg-white rounded-sm mr-2">
-                    <Button @click="previousMonth" variant="ghost" size="sm" class="h-9 w-9 hover:bg-zinc-50 text-zinc-600 rounded-none">
+                    <Button @click="previousPeriod" variant="ghost" size="sm" class="h-9 w-9 hover:bg-zinc-50 text-zinc-600 rounded-none">
                         <ChevronLeft :size="18" />
                     </Button>
                     <div class="w-px h-5 bg-zinc-200"></div>
-                     <span class="px-3 text-xs font-semibold uppercase tracking-wider min-w-[120px] text-center">{{ currentMonthLabel }}</span>
+                     <span class="px-3 text-xs font-semibold uppercase tracking-wider min-w-[140px] text-center">{{ periodLabel }}</span>
                     <div class="w-px h-5 bg-zinc-200"></div>
-                    <Button @click="nextMonth" variant="ghost" size="sm" class="h-9 w-9 hover:bg-zinc-50 text-zinc-600 rounded-none">
+                    <Button @click="nextPeriod" variant="ghost" size="sm" class="h-9 w-9 hover:bg-zinc-50 text-zinc-600 rounded-none">
                         <ChevronRight :size="18" />
                     </Button>
                 </div>
+                <Button v-if="periodMode === 'day'" variant="outline" class="h-9 text-xs" @click="goToToday">Aujourd'hui</Button>
 
-                <Button @click="exportToExcel" variant="outline" class="border-zinc-200 text-zinc-700 hover:bg-zinc-50 h-10 px-4 uppercase tracking-wider text-xs font-bold transition-all">
+                <Button v-if="activeTab === 'ventes'" @click="exportToExcel" variant="outline" class="border-zinc-200 text-zinc-700 hover:bg-zinc-50 h-10 px-4 uppercase tracking-wider text-xs font-bold transition-all">
                     <Download :size="16" class="mr-2" /> Export Excel
                 </Button>
 
-                <Button @click="openNewSaleDialog" class="bg-black hover:bg-zinc-800 text-white rounded-sm h-10 px-4 uppercase tracking-wider text-xs font-bold shadow-sm transition-all hover:shadow-md">
+                <Button v-if="activeTab === 'ventes'" @click="openNewSaleDialog" class="bg-black hover:bg-zinc-800 text-white rounded-sm h-10 px-4 uppercase tracking-wider text-xs font-bold shadow-sm transition-all hover:shadow-md">
                     <Plus :size="16" class="mr-2" /> Nouvelle Vente
                 </Button>
             </div>
         </div>
 
+        <div class="flex items-center gap-2 mb-6 border-b border-zinc-100">
+            <button
+                type="button"
+                class="px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2"
+                :class="activeTab === 'ventes' ? 'border-black text-black' : 'border-transparent text-zinc-400'"
+                @click="activeTab = 'ventes'"
+            >Ventes</button>
+            <button
+                type="button"
+                class="px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2"
+                :class="activeTab === 'depenses' ? 'border-black text-black' : 'border-transparent text-zinc-400'"
+                @click="activeTab = 'depenses'"
+            >Dépenses</button>
+        </div>
+
+        <div v-if="activeTab === 'depenses'" class="flex-1 overflow-auto">
+            <ExpenseManager :period-mode="periodMode" :current-date="periodDate" />
+        </div>
+
+        <template v-else>
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="bg-zinc-50 border border-zinc-200 p-6 rounded-sm relative overflow-hidden group">
                 <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                     <DollarSign :size="64" />
                 </div>
-                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Total du mois</h3>
-                <div class="text-3xl font-bold text-zinc-900 tracking-tight">{{ formatCurrency(totalSales) }}</div>
+                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{{ periodMode === 'day' ? 'Encaissé du jour' : 'Encaissé du mois' }}</h3>
+                <div class="text-3xl font-bold text-zinc-900 tracking-tight">{{ formatCurrency(totalCollected) }}</div>
                 <div class="mt-2 text-xs text-green-600 font-medium flex items-center gap-1">
-                    <TrendingUp :size="12" /> Revenu net
+                    <TrendingUp :size="12" /> Ventes payées
                 </div>
             </div>
             
@@ -326,7 +388,7 @@ const salesCount = computed(() => filteredSales.value.length)
                 </div>
                 <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Nombre de ventes</h3>
                 <div class="text-3xl font-bold text-zinc-900 tracking-tight">{{ salesCount }}</div>
-                <div class="mt-2 text-xs text-zinc-500 font-medium">Transactions ce mois-ci</div>
+                <div class="mt-2 text-xs text-zinc-500 font-medium">{{ periodMode === 'day' ? 'Transactions ce jour' : 'Transactions ce mois-ci' }}</div>
             </div>
 
             <div class="bg-white border border-zinc-200 p-6 rounded-sm flex flex-col justify-center gap-3">
@@ -367,7 +429,7 @@ const salesCount = computed(() => filteredSales.value.length)
                                     <div class="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center mb-1">
                                         <DollarSign class="text-zinc-300" :size="20" />
                                     </div>
-                                    <p>Aucune vente trouvée pour ce mois.</p>
+                                    <p>{{ periodMode === 'day' ? 'Aucune vente trouvée pour ce jour.' : 'Aucune vente trouvée pour ce mois.' }}</p>
                                 </div>
                             </td>
                         </tr>
@@ -377,7 +439,12 @@ const salesCount = computed(() => filteredSales.value.length)
                             class="hover:bg-zinc-50/80 transition-colors group"
                         >
                             <td class="px-6 py-4">
-                                <div class="font-medium text-zinc-900 text-sm">{{ sale.title }}</div>
+                                <div class="flex items-center gap-2">
+                                    <div class="font-medium text-zinc-900 text-sm">{{ sale.title }}</div>
+                                    <Badge v-if="sale.service" variant="outline" class="text-[9px] bg-zinc-100 text-zinc-700 border-zinc-200 px-1.5 py-0 h-4 uppercase tracking-wide">
+                                        {{ sale.service }}
+                                    </Badge>
+                                </div>
                                 <div v-if="sale.description" class="text-xs text-zinc-500 mt-0.5 max-w-[200px] truncate">{{ sale.description }}</div>
                                 <div class="flex items-center gap-2 mt-0.5">
                                     <div class="text-[10px] text-zinc-400 uppercase tracking-wide">ID: #{{ sale.id }}</div>
@@ -422,10 +489,11 @@ const salesCount = computed(() => filteredSales.value.length)
             
             <!-- Summary Footer -->
              <div class="border-t border-zinc-200 bg-zinc-50 p-4 flex justify-between items-center mt-auto">
-                <span class="text-xs text-zinc-500 font-medium uppercase tracking-wide">Total {{ currentMonthLabel }}</span>
-                <span class="text-lg font-bold text-zinc-900 font-mono">{{ formatCurrency(totalSales) }}</span>
+                <span class="text-xs text-zinc-500 font-medium uppercase tracking-wide">Encaissé {{ periodLabel }}</span>
+                <span class="text-lg font-bold text-zinc-900 font-mono">{{ formatCurrency(totalCollected) }}</span>
             </div>
         </div>
+        </template>
 
         <!-- Add/Edit Sale Dialog -->
         <Dialog v-model:open="showSaleDialog">
@@ -441,20 +509,20 @@ const salesCount = computed(() => filteredSales.value.length)
 
                 <form @submit.prevent="saveSale" class="p-6 space-y-5">
                     
-                    <!-- Product Selection Section -->
+                    <!-- Product / Service Selection -->
                     <div class="space-y-3 pb-3 border-b border-zinc-100">
                         <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                             Produit / Service
                         </label>
                         <div class="relative">
                             <select 
-                                v-model="selectedProductId" 
-                                @change="handleProductSelect"
+                                v-model="selectedService" 
+                                @change="handleServiceSelect"
                                 class="w-full h-10 px-3 pr-10 rounded-xl border border-zinc-300 focus:border-zinc-950 outline-none appearance-none bg-white text-sm font-medium"
                             >
                                 <option value="">Aucun produit (Vente libre)</option>
-                                <option v-for="product in products" :key="product.id" :value="product.id">
-                                    {{ product.name }} - {{ formatCurrency(product.price) }}
+                                <option v-for="service in SERVICE_OPTIONS" :key="service" :value="service">
+                                    {{ service }}
                                 </option>
                             </select>
                             <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">

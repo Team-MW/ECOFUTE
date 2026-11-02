@@ -8,6 +8,9 @@ import salesRoutes from './routes/sales.js';
 import userRoutes from './routes/users.js';
 import schoolRoutes from './routes/schools.js';
 import productRoutes from './routes/products.js';
+import expenseRoutes from './routes/expenses.js';
+import textileRoutes from './routes/textiles.js';
+import serrurerieRoutes from './routes/serrurerie.js';
 
 dotenv.config();
 
@@ -44,6 +47,9 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/schools', schoolRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/textiles', textileRoutes);
+app.use('/api/serrurerie', serrurerieRoutes);
 
 // Health Check
 app.get('/api/ping', (req, res) => {

@@ -168,6 +168,8 @@ async function createFolder() {
     }
 }
 
+defineExpose({ openFolder })
+
 // File Input trigger
 const fileInput = ref<HTMLInputElement | null>(null)
 function triggerFileInput() {
