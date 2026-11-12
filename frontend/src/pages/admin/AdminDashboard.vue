@@ -7,7 +7,7 @@ import {
     Users, Search, LogOut, UserPlus, X, Loader, 
     Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
     TrendingUp, BarChart3, Edit3, GraduationCap, Clock, Package,
-    Folder, StickyNote, Shirt, KeyRound
+    Folder, StickyNote, Shirt, KeyRound, Wallet
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,7 @@ import SchoolManager from '@/components/admin/SchoolManager.vue'
 import ProductManager from '@/components/admin/ProductManager.vue'
 import TextileInventory from '@/components/admin/TextileInventory.vue'
 import LocksmithInventory from '@/components/admin/LocksmithInventory.vue'
+import CashRegister from '@/components/admin/CashRegister.vue'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 import InstallAppButton from '@/components/ui/InstallAppButton.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
@@ -103,7 +104,7 @@ const editForm = ref({
     notes: ''
 })
 
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products' | 'textile' | 'serrurerie'>('clients')
+const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products' | 'textile' | 'serrurerie' | 'caisse'>('clients')
 
 const isAdmin = computed(() => {
     if (!user.value) return false
@@ -507,6 +508,13 @@ const formatBirthDate = (d?: string | null) => {
                     <KeyRound :size="18" />
                     Serrurerie
                 </button>
+                <button
+                    @click="activeView = 'caisse'; selectedUser = null; isMobileMenuOpen = false"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'caisse' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <Wallet :size="18" />
+                    Caisse
+                </button>
                 <div v-if="isAdmin" class="px-2 py-3 mt-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Administration</div>
                 <button
                     v-if="isAdmin"
@@ -549,7 +557,7 @@ const formatBirthDate = (d?: string | null) => {
                         </div>
                     </button>
                     <div class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
-                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : activeView === 'textile' ? 'Tableau de bord / Textile' : activeView === 'serrurerie' ? 'Tableau de bord / Serrurerie' : 'Tableau de bord / Clients' }}
+                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : activeView === 'textile' ? 'Tableau de bord / Textile' : activeView === 'serrurerie' ? 'Tableau de bord / Serrurerie' : activeView === 'caisse' ? 'Tableau de bord / Caisse' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 md:gap-3">
@@ -770,6 +778,10 @@ const formatBirthDate = (d?: string | null) => {
 
                 <div v-else-if="activeView === 'serrurerie'" class="h-full">
                     <LocksmithInventory />
+                </div>
+
+                <div v-else-if="activeView === 'caisse'" class="h-full">
+                    <CashRegister />
                 </div>
 
                 <!-- Clients List View -->
