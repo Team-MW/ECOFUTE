@@ -30,6 +30,7 @@ import LocksmithInventory from '@/components/admin/LocksmithInventory.vue'
 import CashRegister from '@/components/admin/CashRegister.vue'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 import InstallAppButton from '@/components/ui/InstallAppButton.vue'
+import RefreshAppButton from '@/components/ui/RefreshAppButton.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
 
 // --- Interfaces ---
@@ -562,6 +563,8 @@ const formatBirthDate = (d?: string | null) => {
                 </div>
                 <div class="flex items-center gap-2 md:gap-3">
                     <!-- Bouton installer l'app -->
+                    <!-- Bouton actualiser (utile en mode application installée, sans barre du navigateur) -->
+                    <RefreshAppButton />
                     <InstallAppButton />
                     <button @click="handleSignOut" class="md:hidden p-2 text-black">
                         <LogOut :size="20" />
