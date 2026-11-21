@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { Plus, Trash2, FileText, Receipt, StickyNote, Download, Loader } from 'lucide-vue-next'
+import { Plus, Trash2, Pencil, FileText, Receipt, StickyNote, Download, Loader } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -34,6 +34,7 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const showDialog = ref(false)
 const selectedFile = ref<File | null>(null)
+const editingExpense = ref<Expense | null>(null)
 
 const form = ref({
     title: '',
@@ -81,12 +82,26 @@ const typeLabel = (type: string) => {
 }
 
 const openCreate = () => {
+    editingExpense.value = null
     form.value = {
         title: '',
         amount: '',
         date: new Date().toISOString().slice(0, 10),
         type: 'facture',
         notes: ''
+    }
+    selectedFile.value = null
+    showDialog.value = true
+}
+
+const openEdit = (expense: Expense) => {
+    editingExpense.value = expense
+    form.value = {
+        title: expense.title,
+        amount: expense.amount != null ? String(expense.amount) : '',
+        date: new Date(expense.date).toISOString().slice(0, 10),
+        type: expense.type || 'facture',
+        notes: expense.notes || ''
     }
     selectedFile.value = null
     showDialog.value = true
@@ -109,10 +124,15 @@ const saveExpense = async () => {
         if (selectedFile.value) {
             payload.append('file', selectedFile.value)
         }
-        await axios.post('/api/expenses', payload)
+        if (editingExpense.value) {
+            await axios.put(`/api/expenses/${editingExpense.value.id}`, payload)
+        } else {
+            await axios.post('/api/expenses', payload)
+        }
         await fetchExpenses()
         showDialog.value = false
-        showToast('Dépense enregistrée', 'success')
+        showToast(editingExpense.value ? 'Dépense modifiée' : 'Dépense enregistrée', 'success')
+        editingExpense.value = null
     } catch (err: any) {
         showToast('Erreur: ' + (err.response?.data?.error || err.message), 'error')
     } finally {
@@ -196,9 +216,14 @@ const deleteExpense = async (expense: Expense) => {
                     </div>
                     <div class="flex items-center gap-3 shrink-0">
                         <span class="font-mono font-bold text-zinc-900">{{ formatCurrency(expense.amount) }}</span>
-                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0 text-zinc-400 hover:text-red-600" @click="deleteExpense(expense)">
-                            <Trash2 :size="14" />
-                        </Button>
+                        <div class="flex flex-row md:flex-col items-center gap-1">
+                            <Button variant="ghost" size="sm" class="h-8 w-8 p-0 text-zinc-400 hover:text-red-600" title="Supprimer" @click="deleteExpense(expense)">
+                                <Trash2 :size="14" />
+                            </Button>
+                            <Button variant="ghost" size="sm" class="h-8 w-8 p-0 text-zinc-400 hover:text-black" title="Modifier" @click="openEdit(expense)">
+                                <Pencil :size="14" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -207,8 +232,8 @@ const deleteExpense = async (expense: Expense) => {
         <Dialog v-model:open="showDialog">
             <DialogContent class="sm:max-w-md rounded-2xl border-zinc-200/60 p-6 bg-white">
                 <DialogHeader>
-                    <DialogTitle class="text-xl font-bold">Nouvelle dépense</DialogTitle>
-                    <DialogDescription>Ajoutez une facture, un ticket ou une note.</DialogDescription>
+                    <DialogTitle class="text-xl font-bold">{{ editingExpense ? 'Modifier la dépense' : 'Nouvelle dépense' }}</DialogTitle>
+                    <DialogDescription>{{ editingExpense ? 'Modifiez les informations ou ajoutez le document.' : 'Ajoutez une facture, un ticket ou une note.' }}</DialogDescription>
                 </DialogHeader>
                 <form @submit.prevent="saveExpense" class="space-y-4 pt-2">
                     <div class="space-y-1">
@@ -239,13 +264,23 @@ const deleteExpense = async (expense: Expense) => {
                     </div>
                     <div class="space-y-1">
                         <label class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Document (facture / ticket)</label>
-                        <input type="file" class="block w-full text-xs text-zinc-500" @change="onFileChange" />
+                        <a
+                            v-if="editingExpense?.fileUrl"
+                            :href="editingExpense.fileUrl"
+                            target="_blank"
+                            class="flex items-center gap-1.5 text-xs font-medium text-zinc-700 border border-zinc-200 px-2 py-1.5 hover:border-black w-fit max-w-full"
+                        >
+                            <Download :size="12" class="shrink-0" />
+                            <span class="truncate">{{ editingExpense.fileName || 'Document actuel' }}</span>
+                        </a>
+                        <input :key="editingExpense?.id ?? 'new'" type="file" class="block w-full text-xs text-zinc-500" @change="onFileChange" />
+                        <p v-if="editingExpense?.fileUrl" class="text-[11px] text-zinc-400">Choisir un fichier remplacera le document actuel.</p>
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
                         <Button type="button" variant="ghost" @click="showDialog = false">Annuler</Button>
                         <Button type="submit" :disabled="isSaving" class="bg-zinc-950 text-white">
                             <Loader v-if="isSaving" class="animate-spin mr-2" :size="14" />
-                            Enregistrer
+                            {{ editingExpense ? 'Mettre à jour' : 'Enregistrer' }}
                         </Button>
                     </div>
                 </form>
