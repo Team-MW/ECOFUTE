@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
+import { isInPeriod, type PeriodMode } from '@/lib/period'
 
 interface Expense {
     id: number
@@ -24,7 +25,7 @@ interface Expense {
 }
 
 const props = defineProps<{
-    periodMode: 'month' | 'day'
+    periodMode: PeriodMode
     currentDate: Date
 }>()
 
@@ -59,13 +60,7 @@ async function fetchExpenses() {
 const filteredExpenses = computed(() => {
     return expenses.value.filter(expense => {
         const date = new Date(expense.date)
-        if (props.periodMode === 'day') {
-            return date.getFullYear() === props.currentDate.getFullYear()
-                && date.getMonth() === props.currentDate.getMonth()
-                && date.getDate() === props.currentDate.getDate()
-        }
-        return date.getMonth() === props.currentDate.getMonth()
-            && date.getFullYear() === props.currentDate.getFullYear()
+        return isInPeriod(date, props.periodMode, props.currentDate)
     })
 })
 

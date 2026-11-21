@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 import ExpenseManager from '@/components/admin/ExpenseManager.vue'
 import { showToast, showConfirm } from '@/lib/feedback'
+import { isInPeriod, weekLabel, type PeriodMode } from '@/lib/period'
 
 interface Sale {
     id: number
@@ -45,11 +46,12 @@ const showSaleDialog = ref(false)
 const editingSale = ref<Sale | null>(null)
 const searchTerm = ref('')
 const currentMonth = ref(new Date())
-const periodMode = ref<'month' | 'day'>('month')
+const periodMode = ref<PeriodMode>('month')
 const currentDay = ref(new Date())
 const activeTab = ref<'ventes' | 'depenses'>('ventes')
 
-const periodDate = computed(() => periodMode.value === 'day' ? currentDay.value : currentMonth.value)
+// Day and week modes share the same anchor date (currentDay)
+const periodDate = computed(() => periodMode.value === 'month' ? currentMonth.value : currentDay.value)
 
 const isExistingClient = ref(true)
 const selectedClientId = ref<string>('')
@@ -235,16 +237,18 @@ const exportToExcel = () => {
 }
 
 const previousPeriod = () => {
-    if (periodMode.value === 'day') {
-        currentDay.value = new Date(currentDay.value.getFullYear(), currentDay.value.getMonth(), currentDay.value.getDate() - 1)
+    if (periodMode.value !== 'month') {
+        const step = periodMode.value === 'week' ? 7 : 1
+        currentDay.value = new Date(currentDay.value.getFullYear(), currentDay.value.getMonth(), currentDay.value.getDate() - step)
         return
     }
     currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1)
 }
 
 const nextPeriod = () => {
-    if (periodMode.value === 'day') {
-        currentDay.value = new Date(currentDay.value.getFullYear(), currentDay.value.getMonth(), currentDay.value.getDate() + 1)
+    if (periodMode.value !== 'month') {
+        const step = periodMode.value === 'week' ? 7 : 1
+        currentDay.value = new Date(currentDay.value.getFullYear(), currentDay.value.getMonth(), currentDay.value.getDate() + step)
         return
     }
     currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1)
@@ -265,18 +269,14 @@ const periodLabel = computed(() => {
     if (periodMode.value === 'day') {
         return currentDay.value.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     }
+    if (periodMode.value === 'week') return weekLabel(currentDay.value)
     return currentMonthLabel.value
 })
 
 const filteredSales = computed(() => {
     return sales.value.filter(sale => {
         const saleDate = new Date(sale.date)
-        const matchesPeriod = periodMode.value === 'day'
-            ? saleDate.getFullYear() === currentDay.value.getFullYear()
-                && saleDate.getMonth() === currentDay.value.getMonth()
-                && saleDate.getDate() === currentDay.value.getDate()
-            : saleDate.getMonth() === currentMonth.value.getMonth()
-                && saleDate.getFullYear() === currentMonth.value.getFullYear()
+        const matchesPeriod = isInPeriod(saleDate, periodMode.value, periodDate.value)
         const q = searchTerm.value.toLowerCase()
         const matchesSearch =
             sale.title.toLowerCase().includes(q) ||
@@ -322,6 +322,12 @@ const salesCount = computed(() => filteredSales.value.length)
                     <button
                         type="button"
                         class="h-9 px-3 text-[10px] font-bold uppercase tracking-wider border-l border-zinc-200"
+                        :class="periodMode === 'week' ? 'bg-black text-white' : 'bg-white text-zinc-500'"
+                        @click="periodMode = 'week'"
+                    >Semaine</button>
+                    <button
+                        type="button"
+                        class="h-9 px-3 text-[10px] font-bold uppercase tracking-wider border-l border-zinc-200"
                         :class="periodMode === 'day' ? 'bg-black text-white' : 'bg-white text-zinc-500'"
                         @click="periodMode = 'day'"
                     >Jour</button>
@@ -337,7 +343,7 @@ const salesCount = computed(() => filteredSales.value.length)
                         <ChevronRight :size="18" />
                     </Button>
                 </div>
-                <Button v-if="periodMode === 'day'" variant="outline" class="h-9 text-xs" @click="goToToday">Aujourd'hui</Button>
+                <Button v-if="periodMode !== 'month'" variant="outline" class="h-9 text-xs" @click="goToToday">{{ periodMode === 'week' ? 'Cette semaine' : "Aujourd'hui" }}</Button>
 
                 <Button v-if="activeTab === 'ventes'" @click="exportToExcel" variant="outline" class="border-zinc-200 text-zinc-700 hover:bg-zinc-50 h-10 px-4 uppercase tracking-wider text-xs font-bold transition-all">
                     <Download :size="16" class="mr-2" /> Export Excel
@@ -375,7 +381,7 @@ const salesCount = computed(() => filteredSales.value.length)
                 <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                     <DollarSign :size="64" />
                 </div>
-                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{{ periodMode === 'day' ? 'Encaissé du jour' : 'Encaissé du mois' }}</h3>
+                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{{ periodMode === 'day' ? 'Encaissé du jour' : periodMode === 'week' ? 'Encaissé de la semaine' : 'Encaissé du mois' }}</h3>
                 <div class="text-3xl font-bold text-zinc-900 tracking-tight">{{ formatCurrency(totalCollected) }}</div>
                 <div class="mt-2 text-xs text-green-600 font-medium flex items-center gap-1">
                     <TrendingUp :size="12" /> Ventes payées
@@ -388,7 +394,7 @@ const salesCount = computed(() => filteredSales.value.length)
                 </div>
                 <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Nombre de ventes</h3>
                 <div class="text-3xl font-bold text-zinc-900 tracking-tight">{{ salesCount }}</div>
-                <div class="mt-2 text-xs text-zinc-500 font-medium">{{ periodMode === 'day' ? 'Transactions ce jour' : 'Transactions ce mois-ci' }}</div>
+                <div class="mt-2 text-xs text-zinc-500 font-medium">{{ periodMode === 'day' ? 'Transactions ce jour' : periodMode === 'week' ? 'Transactions cette semaine' : 'Transactions ce mois-ci' }}</div>
             </div>
 
             <div class="bg-white border border-zinc-200 p-6 rounded-sm flex flex-col justify-center gap-3">
@@ -429,7 +435,7 @@ const salesCount = computed(() => filteredSales.value.length)
                                     <div class="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center mb-1">
                                         <DollarSign class="text-zinc-300" :size="20" />
                                     </div>
-                                    <p>{{ periodMode === 'day' ? 'Aucune vente trouvée pour ce jour.' : 'Aucune vente trouvée pour ce mois.' }}</p>
+                                    <p>{{ periodMode === 'day' ? 'Aucune vente trouvée pour ce jour.' : periodMode === 'week' ? 'Aucune vente trouvée pour cette semaine.' : 'Aucune vente trouvée pour ce mois.' }}</p>
                                 </div>
                             </td>
                         </tr>
