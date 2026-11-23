@@ -3,6 +3,22 @@ import prisma from '../db.js';
 
 const router = express.Router();
 
+// birthDate arrives as "YYYY-MM-DD" (HTML date input) or a full ISO string.
+// Prisma needs a Date object (or full ISO-8601). Returns undefined (leave unchanged),
+// null (clear), a Date, or throws on an invalid value.
+const parseBirthDate = (value) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    const str = String(value).trim();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(str) ? new Date(`${str}T00:00:00.000Z`) : new Date(str);
+    if (isNaN(date.getTime())) {
+        const err = new Error('Date de naissance invalide');
+        err.status = 400;
+        throw err;
+    }
+    return date;
+};
+
 // 1. GET ALL CLIENTS
 router.get('/', async (req, res) => {
     try {
@@ -26,6 +42,7 @@ router.post('/', async (req, res) => {
     }
 
     try {
+        const parsedBirthDate = parseBirthDate(birthDate) ?? null;
         const existing = await prisma.client.findUnique({ where: { email } });
         if (existing) {
             return res.status(400).json({ error: 'A client with this email already exists' });
@@ -44,7 +61,7 @@ router.post('/', async (req, res) => {
                 phone,
                 siret,
                 tvaNumber,
-                birthDate: birthDate || null,
+                birthDate: parsedBirthDate,
                 birthPlace,
                 nationality,
                 notes,
@@ -55,7 +72,7 @@ router.post('/', async (req, res) => {
         res.json(client);
     } catch (error) {
         console.error("Create client error:", error);
-        res.status(500).json({ error: error.message || 'Error creating client' });
+        res.status(error.status || 500).json({ error: error.message || 'Error creating client' });
     }
 });
 
@@ -80,6 +97,7 @@ router.put('/:id', async (req, res) => {
     const { firstName, lastName, email, company, address, addressComplement, city, zipCode, phone, siret, tvaNumber, birthDate, birthPlace, nationality, notes } = req.body;
 
     try {
+        const parsedBirthDate = parseBirthDate(birthDate);
         const client = await prisma.client.update({
             where: { id: parseInt(id) },
             data: {
@@ -94,7 +112,7 @@ router.put('/:id', async (req, res) => {
                 phone,
                 siret,
                 tvaNumber,
-                birthDate: birthDate === undefined ? undefined : (birthDate || null),
+                birthDate: parsedBirthDate,
                 birthPlace,
                 nationality,
                 notes
@@ -103,7 +121,7 @@ router.put('/:id', async (req, res) => {
         res.json(client);
     } catch (error) {
         console.error("Update client error:", error);
-        res.status(500).json({ error: 'Error updating client' });
+        res.status(error.status || 500).json({ error: error.status ? error.message : 'Error updating client' });
     }
 });
 
