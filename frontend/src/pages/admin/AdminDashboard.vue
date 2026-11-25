@@ -7,7 +7,7 @@ import {
     Users, Search, LogOut, UserPlus, X, Loader, 
     Trash2, ArrowLeft, Calendar, FilePlus, ShieldCheck,
     TrendingUp, BarChart3, Edit3, GraduationCap, Clock, Package,
-    Folder, StickyNote, Shirt, KeyRound, Wallet
+    Folder, StickyNote, Shirt, KeyRound, Wallet, Home
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,7 @@ import ProductManager from '@/components/admin/ProductManager.vue'
 import TextileInventory from '@/components/admin/TextileInventory.vue'
 import LocksmithInventory from '@/components/admin/LocksmithInventory.vue'
 import CashRegister from '@/components/admin/CashRegister.vue'
+import HomeView from '@/components/admin/HomeView.vue'
 import SkeletonLoader from '@/components/ui/SkeletonLoader.vue'
 import InstallAppButton from '@/components/ui/InstallAppButton.vue'
 import RefreshAppButton from '@/components/ui/RefreshAppButton.vue'
@@ -105,7 +106,14 @@ const editForm = ref({
     notes: ''
 })
 
-const activeView = ref<'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products' | 'textile' | 'serrurerie' | 'caisse'>('clients')
+type View = 'home' | 'clients' | 'stats' | 'calendar' | 'sales' | 'drive' | 'invoice' | 'team' | 'planning' | 'schools' | 'products' | 'textile' | 'serrurerie' | 'caisse'
+const activeView = ref<View>('home')
+
+const goTo = (view: string) => {
+    activeView.value = view as View
+    selectedUser.value = null
+    isMobileMenuOpen.value = false
+}
 
 const isAdmin = computed(() => {
     if (!user.value) return false
@@ -115,7 +123,7 @@ const isAdmin = computed(() => {
 
 watch([activeView, isAdmin], ([newView, adminVal]) => {
     if ((newView === 'team' || newView === 'sales' || newView === 'stats') && !adminVal) {
-        activeView.value = 'clients'
+        activeView.value = 'home'
     }
 })
 const searchTerm = ref('')
@@ -429,7 +437,9 @@ const formatBirthDate = (d?: string | null) => {
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `">
             <div class="h-16 flex items-center justify-between px-6 border-b border-zinc-900/60">
-                <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-8 invert" />
+                <button type="button" @click="goTo('home')" title="Accueil">
+                    <img src="/logo-ecofute.svg" alt="EcoFuté Logo" class="h-8 invert" />
+                </button>
                 <button class="md:hidden text-zinc-400 hover:text-white" @click="isMobileMenuOpen = false">
                     <X :size="20" />
                 </button>
@@ -437,6 +447,13 @@ const formatBirthDate = (d?: string | null) => {
 
             <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
                 <div class="px-2 py-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Menu Principal</div>
+                <button
+                    @click="goTo('home')"
+                    :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'home' && !selectedUser ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
+                >
+                    <Home :size="18" />
+                    Accueil
+                </button>
                 <button
                     @click="activeView = 'clients'; selectedUser = null; isMobileMenuOpen = false"
                     :class="`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${activeView === 'clients' ? 'bg-white text-black rounded-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-sm'}`"
@@ -558,7 +575,7 @@ const formatBirthDate = (d?: string | null) => {
                         </div>
                     </button>
                     <div class="text-sm font-medium text-zinc-500 uppercase tracking-wide">
-                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : activeView === 'textile' ? 'Tableau de bord / Textile' : activeView === 'serrurerie' ? 'Tableau de bord / Serrurerie' : activeView === 'caisse' ? 'Tableau de bord / Caisse' : 'Tableau de bord / Clients' }}
+                        {{ selectedUser ? `Dossier / ${selectedUser.firstName} ${selectedUser.lastName}` : activeView === 'stats' ? 'Tableau de bord / Statistiques' : activeView === 'calendar' ? 'Tableau de bord / Calendrier' : activeView === 'planning' ? 'Tableau de bord / Planning' : activeView === 'schools' ? 'Tableau de bord / Écoles' : activeView === 'textile' ? 'Tableau de bord / Textile' : activeView === 'serrurerie' ? 'Tableau de bord / Serrurerie' : activeView === 'caisse' ? 'Tableau de bord / Caisse' : activeView === 'home' ? 'Tableau de bord / Accueil' : 'Tableau de bord / Clients' }}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 md:gap-3">
@@ -785,6 +802,11 @@ const formatBirthDate = (d?: string | null) => {
 
                 <div v-else-if="activeView === 'caisse'" class="h-full">
                     <CashRegister />
+                </div>
+
+                <!-- Home View -->
+                <div v-else-if="activeView === 'home'">
+                    <HomeView :is-admin="isAdmin" :first-name="user?.firstName" @navigate="goTo" />
                 </div>
 
                 <!-- Clients List View -->
